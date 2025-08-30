@@ -1,6 +1,13 @@
 ---
-title: "Reto1"
-format: html
+title: "Artículo 1: Redes bayesianas multinomiales"
+author: "Ana Ana Rello de Obeso, Getzemani Kinari Ríos Tavares, David Esteban Flores Medina"
+format:
+   html:
+     toc: true
+     html-math-method: katex
+     embed-resources: true
+     self-contained-math: true
+     df-print: kable
 editor: visual
 ---
 
