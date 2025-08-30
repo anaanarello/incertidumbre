@@ -17,9 +17,19 @@ Quarto enables you to weave together content and executable code into a finished
 
 ## Introducción
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+En 2017 el INEGI realizó la Encuesta Origen Destino en Hogares de la Zona Metropolitana del Valle de México (EOD), la cual nos es de ayuda para entender y analizar la estadística sobre la movilidad de habitantes de la zona con el fin de tener mejores políticas en temas de planificación urbana.
 
 ## Metodología
+
+Para poder realizar las queries sobre la encuesta de movilidad, se tuvo que considerar la siguiente **teoría de redes bayesianas**:\
+Una red bayesiana es un grafo acíclico dirigido (DAG) en el que los nodos representan variables aleatorias y los arcos representan dependencias condicionales entre ellas. Gracias a esta estructura, la distribución conjunta de las variables se puede factorizar, por ejemplo:
+$$
+  \mathbb{P}(A, B, C) = \mathbb{P}(A \mid C, B)\mathbb{P}(A)\mathbb{P}(B)
+$$
+
+Aunque los arcos pueden interpretarse intuitivamente como causa–efecto, en este trabajo se consideran únicamente como relaciones de dependencia estadística. La red permite expresar la distribución global de todas las variables en términos de distribuciones locales más simples, lo que reduce la complejidad y hace el modelo más manejable. Además, la teoría de redes bayesianas ayuda a identificar qué variables son independientes entre sí, dado un conjunto de condiciones.
+
+Estas independencias simplifican los cálculos de probabilidad. Cada nodo requiere probabilidades (simples o condicionales) que pueden estimarse de los datos mediante máxima verosimilitud o asignarse mediante priors en un enfoque bayesiano, obteniendo así un modelo probabilístico estructurado a partir de la información observada. En este sentido, la teoría de redes bayesianas resulta especialmente útil para responder queries sobre la encuesta de movilidad, ya que permite representar las relaciones entre variables sociodemográficas y de transporte, calcular probabilidades a partir de la factorización e independencia condicional y manejar escenarios con datos incompletos o combinaciones nuevas de variables.
 
 ## Aplicación
 
