@@ -22,15 +22,12 @@ En 2017 el INEGI realizó la Encuesta Origen Destino en Hogares de la Zona Metro
 ## Metodología
 
 Para poder realizar las queries sobre la encuesta de movilidad, se tuvo que considerar la siguiente **teoría de redes bayesianas**:\
-<<<<<<< HEAD
-Una red bayesiana es un grafo acíclico dirigido (DAG) en el que los nodos representan variables aleatorias y los arcos representan dependencias condicionales entre ellas. Gracias a esta estructura, la distribución conjunta de las variables se puede factorizar, por ejemplo:
+
+Una red bayesiana es un grafo acíclico dirigido (DAG) en el que los nodos representan variables aleatorias y los arcos representan dependencias condicionales entre ellas. Gracias a esta estructura, la distribución conjunta de las variables se puede factorizar, por ejemplo: 
 $$
   \mathbb{P}(A, B, C) = \mathbb{P}(A \mid C, B)\mathbb{P}(A)\mathbb{P}(B)
-$$
-=======
-Una red bayesiana es un grafo acíclico dirigido (DAG) en el que los nodos representan variables aleatorias y los arcos representan dependencias condicionales entre ellas. Gracias a esta estructura, la distribución conjunta de las variables se puede factorizar, por ejemplo: $$
-  \mathbb{P}(A, B, C) = \mathbb{P}(A \mid C, B)\mathbb{P}(A)\mathbb{P}(B)
-$$ Es por ello que trabajaremos con las siguientes librerías:
+$$ 
+Es por ello que trabajaremos con las siguientes librerías:
 
 -   `bnlearn` es la librería principal para trabajar con la teoría bayesiana en R ya que permite definir estructuras de DAGs, aprender la estructura de la red a partir de datos, ajustar parámetros y hacer inferencia probabilística.
 
@@ -50,7 +47,6 @@ Y para graficar estas estructuras manejaremos `Rgraphviz`, que es la librería q
 install.packages("BiocManager")
 BiocManager::install("Rgraphviz")
 ```
->>>>>>> ana2cambios
 
 Aunque los arcos pueden interpretarse intuitivamente como causa–efecto, en este trabajo se consideran únicamente como relaciones de dependencia estadística. La red permite expresar la distribución global de todas las variables en términos de distribuciones locales más simples, lo que reduce la complejidad y hace el modelo más manejable. Además, la teoría de redes bayesianas ayuda a identificar qué variables son independientes entre sí, dado un conjunto de condiciones.
 
