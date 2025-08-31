@@ -21,7 +21,7 @@ En 2017 el INEGI realizó la Encuesta Origen Destino en Hogares de la Zona Metro
 
 ## Metodología
 
-Para poder realizar las queries sobre la encuesta de movilidad, se tuvo que considerar la siguiente **teoría de redes bayesianas**:\
+Para poder realizar las queries sobre la encuesta de movilidad, se tuvo que considerar la siguiente **teoría de redes bayesianas**:
 
 Una red bayesiana es un grafo acíclico dirigido (DAG) en el que los nodos representan variables aleatorias y los arcos representan dependencias condicionales entre ellas. Gracias a esta estructura, la distribución conjunta de las variables se puede factorizar, por ejemplo: 
 $$
@@ -59,12 +59,13 @@ Estas independencias simplifican los cálculos de probabilidad. Cada nodo requie
 Para la primera query, vimos que el dataset más relevante era viajes, ya que la probabilidad a calcular se basaba en lo siguiente: *¿Cuál es la probabilidad de tener autos o camionetas con holograma 00 ó 0, dado que se tiene un estrato alto o medio alto?*
 
 ```{r}
-query1 = read.csv("~/Desktop/semestre 5/semestre 5/repositorio/data/query1.csv", stringsAsFactors = TRUE)
+query1 = read.csv("~/incertidumbre", stringsAsFactors = TRUE)
 head(query1)
 ```
 
 ```{r}
 query1_limpio = na.omit(query1)
+query1_limpio
 ```
 
 ```{r}
