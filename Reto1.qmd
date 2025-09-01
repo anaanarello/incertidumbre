@@ -62,8 +62,6 @@ Para el código se realiza lo siguiente:
 
 1.   Lectura y limpieza de datos: Cada query se basa en un subconjunto específico de los datos, extraído de archivos CSV. Antes de ajustar la red bayesiana, se eliminan observaciones incompletas usando na.omit(). Además, se convierten las variables a factores categóricos con niveles y etiquetas significativas. Por ejemplo, los estratos socioeconómicos (E), el tipo de transporte (T), el sexo (S) o el holograma del vehículo (H) se codifican para que R los interprete como variables discretas, requisito indispensable para bnlearn.
 
-<!-- -->
-
 2.  Definición del DAG (grafo acíclico dirigido): Cada red bayesiana se representa mediante un DAG, donde los nodos son variables y los arcos indican dependencias condicionales. Por ejemplo, en la Query 1, el estrato (E) influye en el tipo de transporte (T) y este a su vez en el holograma (H). Se utiliza empty.graph() para crear la estructura vacía y luego se agregan los arcos con arcs().
 
 3.  Ajuste de los parámetros de la red: Una vez definido el DAG, se estiman las distribuciones condicionales de cada nodo usando `bn.fit()`. El ajuste puede hacerse por máxima verosimilitud, que calcula las probabilidades de cada categoría dado sus padres en el DAG.
