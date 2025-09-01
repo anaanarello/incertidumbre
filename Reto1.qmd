@@ -33,7 +33,7 @@ Una red bayesiana es un grafo acíclico dirigido (DAG) en el que los nodos repre
 
 $$
 \mathbb{P}(A, B, C) = \mathbb{P}(A \mid C, B)\mathbb{P}(A)\mathbb{P}(B)
-$$ 
+$$
 
 Es por ello que trabajaremos con las siguientes librerías:
 
@@ -60,7 +60,7 @@ Estas independencias simplifican los cálculos de probabilidad. Cada nodo requie
 
 Para el código se realiza lo siguiente:
 
-1.   Lectura y limpieza de datos: Cada query se basa en un subconjunto específico de los datos, extraído de archivos CSV. Antes de ajustar la red bayesiana, se eliminan observaciones incompletas usando na.omit(). Además, se convierten las variables a factores categóricos con niveles y etiquetas significativas. Por ejemplo, los estratos socioeconómicos (E), el tipo de transporte (T), el sexo (S) o el holograma del vehículo (H) se codifican para que R los interprete como variables discretas, requisito indispensable para bnlearn.
+1.  Lectura y limpieza de datos: Cada query se basa en un subconjunto específico de los datos, extraído de archivos CSV. Antes de ajustar la red bayesiana, se eliminan observaciones incompletas usando na.omit(). Además, se convierten las variables a factores categóricos con niveles y etiquetas significativas. Por ejemplo, los estratos socioeconómicos (E), el tipo de transporte (T), el sexo (S) o el holograma del vehículo (H) se codifican para que R los interprete como variables discretas, requisito indispensable para bnlearn.
 
 2.  Definición del DAG (grafo acíclico dirigido): Cada red bayesiana se representa mediante un DAG, donde los nodos son variables y los arcos indican dependencias condicionales. Por ejemplo, en la Query 1, el estrato (E) influye en el tipo de transporte (T) y este a su vez en el holograma (H). Se utiliza empty.graph() para crear la estructura vacía y luego se agregan los arcos con arcs().
 
@@ -75,41 +75,44 @@ Para el código se realiza lo siguiente:
 Este procedimiento se repite para cada conjunto de variables y cada query, adaptando los DAGs a las relaciones relevantes y ajustando las variables discretas a la naturaleza multinomial de la red.
 
 ## Aplicación
-### Queries 
+
+### Queries
 
 #### Primera
-*¿Cuál es la probabilidad de tener autos o camionetas con holograma 00 ó 0, dado que se tiene un estrato alto o medio alto?*
+
+*¿Cuál es la probabilidad de tener autos o camionetas con holograma 00 ó 0, dado que se tiene un estrato alto o medio alto?* 
 $$
 \mathbb{P}(E \in \{\text{Alto, Medio alto}\} \mid H \in \{\text{Holograma 00, Holograma 0}\}, T = \text{Utilizo})
 $$
 
-
 #### Segunda
-*¿Qué es más probable en los viajes de mujeres: que usen automóvil particular o transporte público?*
+
+*¿Qué es más probable en los viajes de mujeres: que usen automóvil particular o transporte público?* 
+
 $$
-\mathbb{P}(S = \text{Mujer} \mid T \in \{\text{Privado, Público}\})
+\mathbb{P}(T = \text{Público} \mid S = \text{Mujer})
 $$
 
 $$
-\mathbb{P}(S = \text{Hombre} \mid T \in \{\text{Privado, Público}\})
+\mathbb{P}(T = \text{Privado} \mid S = \text{Mujer})
 $$
-
 
 #### Tercera
-*¿Cuál es la probabilidad de que un viaje sea de una mujer entre 30 y 40 años, dado que el propósito del viaje era ir a trabajar o al hogar, y usó bicicleta como medio de transporte?*
+
+*¿Cuál es la probabilidad de que un viaje sea de una mujer entre 30 y 40 años, dado que el propósito del viaje era ir a trabajar o al hogar, y usó bicicleta como medio de transporte?* 
 $$
 \mathbb{P}(S = \text{Mujer}, E \in [30,40] \mid P \in \{\text{Hogar, Trabajo}\}, T = \text{Bicicleta})
 $$
 
 #### Cuarta
-*¿Cuál es la probabilidad de que una persona sea de estrato bajo dado que vive en Calvillo?*
+
+*¿Cuál es la probabilidad de que una persona sea de estrato bajo dado que vive en Calvillo?* 
 $$
 \mathbb{P}(E = \text{Bajo} \mid M = \text{Calvillo})
 $$
 
-
-
 ### Procedimiento Adicional
+
 Aparte de manejar estas querys de la manera propuesta por el profesor, se plantearon unas DAGs aparte para ver si difería mucho la probabilidad estando en una DAG grande y general. Por lo que se tienen .csv aparte para tener en cuenta solo la información relevante, los cuales pueden ser consultados en el github.
 
 De todas las carpetas de datos recibidas (Viviendas, Hogares, Características sociodemográficas, Viajes realizados y Transporte), filtramos únicamente aquellas que resultan relevantes para responder nuestras consultas: **Viajes realizados** y **Características sociodemográficas**.
@@ -118,19 +121,17 @@ De todas las carpetas de datos recibidas (Viviendas, Hogares, Características s
 
 Para la primera query, vimos que el dataset más relevante era viajes, ya que la probabilidad a calcular se basaba en lo siguiente: *¿Cuál es la probabilidad de tener autos o camionetas con holograma 00 ó 0, dado que se tiene un estrato alto o medio alto?*
 
-Observaciones:  
-- Los Holograma 00 y 0 son los más restringidos a la circulación porque son los autos más contaminantes.  
+Observaciones:
+- Los Holograma 00 y 0 son los más restringidos a la circulación porque son los autos más contaminantes.
 - El holograma 2 es el menos restringido.
 
 Variables consideradas: 
-- E: Estrato: 1 (Bajo), 2 (Medio bajo), 3 (Medio alto), 4 (Alto)  
-- T: Medio de transporte: 1 (Utilizo), 2 (No utilizo)  
+- E: Estrato: 1 (Bajo), 2 (Medio bajo), 3 (Medio alto), 4 (Alto)
+- T: Medio de transporte: 1 (Utilizo), 2 (No utilizo)
 - H: Holograma: 1 (Holograma 00), 2 (Holograma 0), 3 (Holograma 1), 4 (Holograma 2), 9 (No sabe)
 
-Preguntas de la encuesta usadas para crear los nodos:  
-- Pregunta 5.14: Dígame por favor sí utilizó 01 automóvil como medio de transporte
-- Pregunta 5.25: El automóvil que manejó el día de viaje, ¿qué holograma tiene?
-
+Preguntas de la encuesta usadas para crear los nodos:
+- Pregunta 5.14: Dígame por favor sí utilizó 01 automóvil como medio de transporte - Pregunta 5.25: El automóvil que manejó el día de viaje, ¿qué holograma tiene?
 
 ```{r}
 query1 = read.csv("query1.csv")
@@ -208,12 +209,12 @@ bn2 = bn.fit(dag2, data = query2_limpio)
 
 ```{r}
 set.seed(1234)
-cpquery(bn2, event = (S == "Mujer"), evidence = ((T == "Privado") | T== "Público"), n = 10^6)
+cpquery(bn2, event = (T == "Privado"), evidence = (S == "Mujer"), n = 10^6)
 ```
 
 ```{r}
 set.seed(1234)
-cpquery(bn2, event = (S == "Hombre"), evidence = ((T == "Privado") | T== "Público"), n = 10^6)
+cpquery(bn2, event = (T == "Público"), evidence = (S == "Mujer"), n = 10^6)
 ```
 
 #### Query 3
@@ -303,6 +304,10 @@ set.seed(1234)
 cpquery(bn4, event = (M == "Calvillo"), evidence = ((E == "Bajo")), n = 10^6)
 ```
 
+
+
 ## Conclusiones
+
+}
 
 ## Referencias
