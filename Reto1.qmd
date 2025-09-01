@@ -34,8 +34,6 @@ Es por ello que trabajaremos con las siguientes librerías:
 -   `readr` es una librería de tidyverse especializada en leer y escribir datos de forma rápida y eficiente, por lo que los datos de la encuesta de movilidad son más faciles de importar por medio de esta librería.
 
 ```{r}
-#| eval: false
-
 library(bnlearn)
 library(readr)
 ```
@@ -54,9 +52,11 @@ Estas independencias simplifican los cálculos de probabilidad. Cada nodo requie
 
 ## Aplicación
 
-Aparte de manejar estas querys de la manera propuesta por el profesor, se plantearon unas DAGs aparte para ver si difería mucho la probabilidad estando en una DAG grande y general. Por lo que se tienen .csv aparte 
+Aparte de manejar estas querys de la manera propuesta por el profesor, se plantearon unas DAGs aparte para ver si difería mucho la probabilidad estando en una DAG grande y general. Por lo que se tienen .csv aparte para tener en cuenta solo la información relevante, los cuales pueden ser consultados en el github. 
 
-### Query 1
+### Procedimiento Adicional
+
+#### Query 1
 
 Para la primera query, vimos que el dataset más relevante era viajes, ya que la probabilidad a calcular se basaba en lo siguiente: *¿Cuál es la probabilidad de tener autos o camionetas con holograma 00 ó 0, dado que se tiene un estrato alto o medio alto?*
 
@@ -88,7 +88,7 @@ arc_set1 = matrix(c("E", "T",
                  byrow = TRUE, ncol = 2,
                  dimnames = list(NULL, c("from", "to")))
 arcs(dag1) = arc_set1
-dag1
+graphviz.plot(dag1, shape = "ellipse")
 ```
 
 ```{r}
@@ -99,7 +99,7 @@ bn1 = bn.fit(dag1, data = query1_limpio)
 set.seed(1234)
 cpquery(bn1, event = (E == "Alto"), evidence = ((T == "Utilizo") & ((H == "Holograma00") | (H == "Holograma0"))), n = 10^6)
 ```
-### Query 2
+#### Query 2
 
 ```{r}
 query2 = read.csv("query2.csv")
@@ -126,8 +126,9 @@ arc_set2 = matrix(c("S", "T"),
                  byrow = TRUE, ncol = 2,
                  dimnames = list(NULL, c("from", "to")))
 arcs(dag2) = arc_set2
-dag2
+graphviz.plot(dag2, shape = "ellipse")
 ```
+
 ```{r}
 bn2 = bn.fit(dag2, data = query2_limpio)
 ```
@@ -142,7 +143,7 @@ set.seed(1234)
 cpquery(bn2, event = (S == "Hombre"), evidence = ((T == "Privado") | T== "Público"), n = 10^6)
 ```
 
-### Query 3
+#### Query 3
 
 ```{r}
 query3 = read.csv("query3.csv")
@@ -178,8 +179,9 @@ arc_set3 = matrix(c("S", "P",
                  byrow = TRUE, ncol = 2,
                  dimnames = list(NULL, c("from", "to")))
 arcs(dag3) = arc_set3
-dag3
+graphviz.plot(dag3, shape = "ellipse")
 ```
+
 ```{r}
 bn3 = bn.fit(dag3, data = query3_limpio)
 ```
@@ -190,7 +192,7 @@ cpquery(bn3,
                 event = (S == "Mujer"), evidence = ((E == "Adulto_joven") & (T == "Público") & (P == "Hogar" | P == "Trabajo")), n = 10^6)  
 ```
 
-### Query 4
+#### Query 4
 
 ```{r}
 query4 = read.csv("query4.csv")
@@ -216,8 +218,8 @@ arc_set4 = matrix(c("M", "E"),
                  byrow = TRUE, ncol = 2,
                  dimnames = list(NULL, c("from", "to")))
 arcs(dag4) = arc_set4
-dag4
-``
+graphviz.plot(dag4, shape = "ellipse")
+```
 
 ```{r}
 bn4 = bn.fit(dag4, data = query4_limpio)
