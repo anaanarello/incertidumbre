@@ -17,16 +17,24 @@ Quarto enables you to weave together content and executable code into a finished
 
 ## Introducción
 
-En 2017 el INEGI realizó la Encuesta Origen Destino en Hogares de la Zona Metropolitana del Valle de México (EOD), la cual nos es de ayuda para entender y analizar la estadística sobre la movilidad de habitantes de la zona con el fin de tener mejores políticas en temas de planificación urbana.
+La comprensión de los patrones de movilidad urbana requiere herramientas estadísticas capaces de modelar relaciones complejas entre múltiples variables categóricas. En este contexto, las redes bayesianas multinomiales constituyen un enfoque especialmente adecuado, ya que permiten representar variables discretas con múltiples categorías y capturar las dependencias condicionales entre ellas de manera explícita. Cada nodo de la red representa una variable multinomial, mientras que los arcos dirigidos codifican las relaciones de dependencia probabilística entre las variables, formando un grafo acíclico dirigido (DAG).
+
+Estas redes ofrecen varias ventajas frente a los modelos estadísticos tradicionales. Permiten integrar información previa, gestionar datos incompletos y estimar probabilidades condicionales incluso en situaciones donde no se dispone de observaciones completas. Además, la estructura de la red facilita la interpretación de las interacciones entre variables, ya que cada nodo puede ser entendido como una distribución condicional sobre sus padres, y la factorización de la distribución conjunta en términos de estas distribuciones locales reduce significativamente la complejidad computacional.
+
+En el ámbito de la movilidad urbana, las redes bayesianas multinomiales permiten modelar de manera sistemática cómo factores sociodemográficos, como edad, sexo y estrato socioeconómico, influyen en la elección de medios de transporte y en el propósito de los viajes. Este enfoque no solo posibilita la estimación de probabilidades condicionales específicas, sino también la simulación de escenarios hipotéticos, lo que resulta fundamental para la formulación de políticas de transporte basadas en evidencia.
+
+El presente trabajo utiliza estas herramientas para analizar los datos de la Encuesta Origen-Destino 2017, demostrando la aplicabilidad de las redes bayesianas multinomiales en la modelación de variables discretas y en la inferencia probabilística de eventos de interés en contextos urbanos complejos.
 
 ## Metodología
 
 Para poder realizar las queries sobre la encuesta de movilidad, se tuvo que considerar la siguiente **teoría de redes bayesianas**:
 
-Una red bayesiana es un grafo acíclico dirigido (DAG) en el que los nodos representan variables aleatorias y los arcos representan dependencias condicionales entre ellas. Gracias a esta estructura, la distribución conjunta de las variables se puede factorizar, por ejemplo: 
+Una red bayesiana es un grafo acíclico dirigido (DAG) en el que los nodos representan variables aleatorias y los arcos representan dependencias condicionales entre ellas. Gracias a esta estructura, la distribución conjunta de las variables se puede factorizar, por ejemplo:
+
 $$
-  \mathbb{P}(A, B, C) = \mathbb{P}(A \mid C, B)\mathbb{P}(A)\mathbb{P}(B)
+\mathbb{P}(A, B, C) = \mathbb{P}(A \mid C, B)\mathbb{P}(A)\mathbb{P}(B)
 $$ 
+
 Es por ello que trabajaremos con las siguientes librerías:
 
 -   `bnlearn` es la librería principal para trabajar con la teoría bayesiana en R ya que permite definir estructuras de DAGs, aprender la estructura de la red a partir de datos, ajustar parámetros y hacer inferencia probabilística.
@@ -34,8 +42,6 @@ Es por ello que trabajaremos con las siguientes librerías:
 -   `readr` es una librería de tidyverse especializada en leer y escribir datos de forma rápida y eficiente, por lo que los datos de la encuesta de movilidad son más faciles de importar por medio de esta librería.
 
 ```{r}
-#| eval: false
-
 library(bnlearn)
 library(readr)
 ```
@@ -52,13 +58,79 @@ Aunque los arcos pueden interpretarse intuitivamente como causa–efecto, en est
 
 Estas independencias simplifican los cálculos de probabilidad. Cada nodo requiere probabilidades (simples o condicionales) que pueden estimarse de los datos mediante máxima verosimilitud o asignarse mediante priors en un enfoque bayesiano, obteniendo así un modelo probabilístico estructurado a partir de la información observada. En este sentido, la teoría de redes bayesianas resulta especialmente útil para responder queries sobre la encuesta de movilidad, ya que permite representar las relaciones entre variables sociodemográficas y de transporte, calcular probabilidades a partir de la factorización e independencia condicional y manejar escenarios con datos incompletos o combinaciones nuevas de variables.
 
+Para el código se realiza lo siguiente:
+
+1.   Lectura y limpieza de datos: Cada query se basa en un subconjunto específico de los datos, extraído de archivos CSV. Antes de ajustar la red bayesiana, se eliminan observaciones incompletas usando na.omit(). Además, se convierten las variables a factores categóricos con niveles y etiquetas significativas. Por ejemplo, los estratos socioeconómicos (E), el tipo de transporte (T), el sexo (S) o el holograma del vehículo (H) se codifican para que R los interprete como variables discretas, requisito indispensable para bnlearn.
+
+2.  Definición del DAG (grafo acíclico dirigido): Cada red bayesiana se representa mediante un DAG, donde los nodos son variables y los arcos indican dependencias condicionales. Por ejemplo, en la Query 1, el estrato (E) influye en el tipo de transporte (T) y este a su vez en el holograma (H). Se utiliza empty.graph() para crear la estructura vacía y luego se agregan los arcos con arcs().
+
+3.  Ajuste de los parámetros de la red: Una vez definido el DAG, se estiman las distribuciones condicionales de cada nodo usando `bn.fit()`. El ajuste puede hacerse por máxima verosimilitud, que calcula las probabilidades de cada categoría dado sus padres en el DAG.
+
+4.  Cálculo de probabilidades condicionales (queries): Para responder preguntas específicas, se usa `cpquery()`, que estima la probabilidad condicional de un evento dado un conjunto de evidencias. Se pueden manejar múltiples condiciones combinadas con operadores lógicos & (y) y \| (o). Además, se establece una semilla con set.seed() para reproducibilidad.
+
+5.  Agrupamiento y categorización de variables complejas: Algunas variables numéricas, como la edad (E) en la Query 3, se transforman en rangos o categorías para adecuarlas al formato multinomial. Por ejemplo, se define Menor, Adulto_joven, Adulto y Tercera_edad usando cut():
+
+6.  Interpretación y aplicación de resultados: Cada `cpquery()` devuelve la probabilidad estimada de un evento de interés dado las condiciones especificadas, lo que permite analizar patrones de movilidad o perfil sociodemográfico.
+
+Este procedimiento se repite para cada conjunto de variables y cada query, adaptando los DAGs a las relaciones relevantes y ajustando las variables discretas a la naturaleza multinomial de la red.
+
 ## Aplicación
+### Queries 
 
-Aparte de manejar estas querys de la manera propuesta por el profesor, se plantearon unas DAGs aparte para ver si difería mucho la probabilidad estando en una DAG grande y general. Por lo que se tienen .csv aparte 
+#### Primera
+*¿Cuál es la probabilidad de tener autos o camionetas con holograma 00 ó 0, dado que se tiene un estrato alto o medio alto?*
+$$
+\mathbb{P}(E \in \{\text{Alto, Medio alto}\} \mid H \in \{\text{Holograma 00, Holograma 0}\}, T = \text{Utilizo})
+$$
 
-### Query 1
+
+#### Segunda
+*¿Qué es más probable en los viajes de mujeres: que usen automóvil particular o transporte público?*
+$$
+\mathbb{P}(S = \text{Mujer} \mid T \in \{\text{Privado, Público}\})
+$$
+
+$$
+\mathbb{P}(S = \text{Hombre} \mid T \in \{\text{Privado, Público}\})
+$$
+
+
+#### Tercera
+*¿Cuál es la probabilidad de que un viaje sea de una mujer entre 30 y 40 años, dado que el propósito del viaje era ir a trabajar o al hogar, y usó bicicleta como medio de transporte?*
+$$
+\mathbb{P}(S = \text{Mujer}, E \in [30,40] \mid P \in \{\text{Hogar, Trabajo}\}, T = \text{Bicicleta})
+$$
+
+#### Cuarta
+*¿Cuál es la probabilidad de que una persona sea de estrato bajo dado que vive en Calvillo?*
+$$
+\mathbb{P}(E = \text{Bajo} \mid M = \text{Calvillo})
+$$
+
+
+
+### Procedimiento Adicional
+Aparte de manejar estas querys de la manera propuesta por el profesor, se plantearon unas DAGs aparte para ver si difería mucho la probabilidad estando en una DAG grande y general. Por lo que se tienen .csv aparte para tener en cuenta solo la información relevante, los cuales pueden ser consultados en el github.
+
+De todas las carpetas de datos recibidas (Viviendas, Hogares, Características sociodemográficas, Viajes realizados y Transporte), filtramos únicamente aquellas que resultan relevantes para responder nuestras consultas: **Viajes realizados** y **Características sociodemográficas**.
+
+#### Query 1
 
 Para la primera query, vimos que el dataset más relevante era viajes, ya que la probabilidad a calcular se basaba en lo siguiente: *¿Cuál es la probabilidad de tener autos o camionetas con holograma 00 ó 0, dado que se tiene un estrato alto o medio alto?*
+
+Observaciones:  
+- Los Holograma 00 y 0 son los más restringidos a la circulación porque son los autos más contaminantes.  
+- El holograma 2 es el menos restringido.
+
+Variables consideradas: 
+- E: Estrato: 1 (Bajo), 2 (Medio bajo), 3 (Medio alto), 4 (Alto)  
+- T: Medio de transporte: 1 (Utilizo), 2 (No utilizo)  
+- H: Holograma: 1 (Holograma 00), 2 (Holograma 0), 3 (Holograma 1), 4 (Holograma 2), 9 (No sabe)
+
+Preguntas de la encuesta usadas para crear los nodos:  
+- Pregunta 5.14: Dígame por favor sí utilizó 01 automóvil como medio de transporte
+- Pregunta 5.25: El automóvil que manejó el día de viaje, ¿qué holograma tiene?
+
 
 ```{r}
 query1 = read.csv("query1.csv")
@@ -88,7 +160,7 @@ arc_set1 = matrix(c("E", "T",
                  byrow = TRUE, ncol = 2,
                  dimnames = list(NULL, c("from", "to")))
 arcs(dag1) = arc_set1
-dag1
+graphviz.plot(dag1, shape = "ellipse")
 ```
 
 ```{r}
@@ -99,7 +171,8 @@ bn1 = bn.fit(dag1, data = query1_limpio)
 set.seed(1234)
 cpquery(bn1, event = (E == "Alto"), evidence = ((T == "Utilizo") & ((H == "Holograma00") | (H == "Holograma0"))), n = 10^6)
 ```
-### Query 2
+
+#### Query 2
 
 ```{r}
 query2 = read.csv("query2.csv")
@@ -126,8 +199,9 @@ arc_set2 = matrix(c("S", "T"),
                  byrow = TRUE, ncol = 2,
                  dimnames = list(NULL, c("from", "to")))
 arcs(dag2) = arc_set2
-dag2
+graphviz.plot(dag2, shape = "ellipse")
 ```
+
 ```{r}
 bn2 = bn.fit(dag2, data = query2_limpio)
 ```
@@ -142,7 +216,7 @@ set.seed(1234)
 cpquery(bn2, event = (S == "Hombre"), evidence = ((T == "Privado") | T== "Público"), n = 10^6)
 ```
 
-### Query 3
+#### Query 3
 
 ```{r}
 query3 = read.csv("query3.csv")
@@ -178,8 +252,9 @@ arc_set3 = matrix(c("S", "P",
                  byrow = TRUE, ncol = 2,
                  dimnames = list(NULL, c("from", "to")))
 arcs(dag3) = arc_set3
-dag3
+graphviz.plot(dag3, shape = "ellipse")
 ```
+
 ```{r}
 bn3 = bn.fit(dag3, data = query3_limpio)
 ```
@@ -190,7 +265,7 @@ cpquery(bn3,
                 event = (S == "Mujer"), evidence = ((E == "Adulto_joven") & (T == "Público") & (P == "Hogar" | P == "Trabajo")), n = 10^6)  
 ```
 
-### Query 4
+#### Query 4
 
 ```{r}
 query4 = read.csv("query4.csv")
@@ -216,17 +291,17 @@ arc_set4 = matrix(c("M", "E"),
                  byrow = TRUE, ncol = 2,
                  dimnames = list(NULL, c("from", "to")))
 arcs(dag4) = arc_set4
-dag4
-``
+graphviz.plot(dag4, shape = "ellipse")
+```
 
 ```{r}
 bn4 = bn.fit(dag4, data = query4_limpio)
 ```
 
 ```{r}
+set.seed(1234)
 cpquery(bn4, event = (M == "Calvillo"), evidence = ((E == "Bajo")), n = 10^6)
 ```
-
 
 ## Conclusiones
 
