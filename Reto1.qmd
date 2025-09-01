@@ -21,16 +21,13 @@ En 2017 el INEGI realizó la Encuesta Origen Destino en Hogares de la Zona Metro
 
 ## Metodología
 
-Para poder realizar las queries sobre la encuesta de movilidad, se tuvo que considerar la siguiente **teoría de redes bayesianas**:\
-<<<<<<< HEAD
-Una red bayesiana es un grafo acíclico dirigido (DAG) en el que los nodos representan variables aleatorias y los arcos representan dependencias condicionales entre ellas. Gracias a esta estructura, la distribución conjunta de las variables se puede factorizar, por ejemplo:
+Para poder realizar las queries sobre la encuesta de movilidad, se tuvo que considerar la siguiente **teoría de redes bayesianas**:
+
+Una red bayesiana es un grafo acíclico dirigido (DAG) en el que los nodos representan variables aleatorias y los arcos representan dependencias condicionales entre ellas. Gracias a esta estructura, la distribución conjunta de las variables se puede factorizar, por ejemplo: 
 $$
   \mathbb{P}(A, B, C) = \mathbb{P}(A \mid C, B)\mathbb{P}(A)\mathbb{P}(B)
-$$
-=======
-Una red bayesiana es un grafo acíclico dirigido (DAG) en el que los nodos representan variables aleatorias y los arcos representan dependencias condicionales entre ellas. Gracias a esta estructura, la distribución conjunta de las variables se puede factorizar, por ejemplo: $$
-  \mathbb{P}(A, B, C) = \mathbb{P}(A \mid C, B)\mathbb{P}(A)\mathbb{P}(B)
-$$ Es por ello que trabajaremos con las siguientes librerías:
+$$ 
+Es por ello que trabajaremos con las siguientes librerías:
 
 -   `bnlearn` es la librería principal para trabajar con la teoría bayesiana en R ya que permite definir estructuras de DAGs, aprender la estructura de la red a partir de datos, ajustar parámetros y hacer inferencia probabilística.
 
@@ -50,7 +47,6 @@ Y para graficar estas estructuras manejaremos `Rgraphviz`, que es la librería q
 install.packages("BiocManager")
 BiocManager::install("Rgraphviz")
 ```
->>>>>>> ana2cambios
 
 Aunque los arcos pueden interpretarse intuitivamente como causa–efecto, en este trabajo se consideran únicamente como relaciones de dependencia estadística. La red permite expresar la distribución global de todas las variables en términos de distribuciones locales más simples, lo que reduce la complejidad y hace el modelo más manejable. Además, la teoría de redes bayesianas ayuda a identificar qué variables son independientes entre sí, dado un conjunto de condiciones.
 
@@ -58,17 +54,31 @@ Estas independencias simplifican los cálculos de probabilidad. Cada nodo requie
 
 ## Aplicación
 
+Aparte de manejar estas querys de la manera propuesta por el profesor, se plantearon unas DAGs aparte para ver si difería mucho la probabilidad estando en una DAG grande y general. Por lo que se tienen .csv aparte 
+
 ### Query 1
 
 Para la primera query, vimos que el dataset más relevante era viajes, ya que la probabilidad a calcular se basaba en lo siguiente: *¿Cuál es la probabilidad de tener autos o camionetas con holograma 00 ó 0, dado que se tiene un estrato alto o medio alto?*
 
 ```{r}
-query1 = read.csv("~/Desktop/semestre 5/semestre 5/repositorio/data/query1.csv", stringsAsFactors = TRUE)
+query1 = read.csv("query1.csv")
 head(query1)
 ```
 
 ```{r}
 query1_limpio = na.omit(query1)
+query1_limpio$E <- factor(query1_limpio$E,
+                          levels = c(1, 2, 3, 4),
+                          labels = c("Bajo", "Medio_bajo", "Medio_alto", "Alto"))
+
+query1_limpio$T <- factor(query1_limpio$T,
+                          levels = c(1, 2),
+                          labels = c("Utilizo", "No_utilizo"))
+
+query1_limpio$H <- factor(query1_limpio$H,
+                          levels = c(1, 2, 3, 4, 9),
+                          labels = c("Holograma00", "Holograma0", "Holograma1", "Holograma2", "No_sabe"))
+query1_limpio
 ```
 
 ```{r}
@@ -86,9 +96,137 @@ bn1 = bn.fit(dag1, data = query1_limpio)
 ```
 
 ```{r}
-# puede haber posible error si el string contiene valor numerico y valor mal escrito por falta de mayusculas o minusculas 
-cpquery(dag1, event = (E == "4"), evidence = ((T == "1") & ((H == "1") | (H == "2"))), n = 10^6)
+set.seed(1234)
+cpquery(bn1, event = (E == "Alto"), evidence = ((T == "Utilizo") & ((H == "Holograma00") | (H == "Holograma0"))), n = 10^6)
 ```
+### Query 2
+
+```{r}
+query2 = read.csv("query2.csv")
+head(query2)
+```
+
+```{r}
+query2_limpio <- na.omit(query2)
+
+query2_limpio$T <- factor(query2_limpio$T,
+                          levels = c(1, 2),
+                          labels = c("Privado", "Público"))
+
+query2_limpio$S <- factor(query2_limpio$S,
+                          levels = c(1, 2),
+                          labels = c("Hombre", "Mujer"))
+
+query2_limpio
+```
+
+```{r}
+dag2 = empty.graph(nodes = c("S", "T"))
+arc_set2 = matrix(c("S", "T"), 
+                 byrow = TRUE, ncol = 2,
+                 dimnames = list(NULL, c("from", "to")))
+arcs(dag2) = arc_set2
+dag2
+```
+```{r}
+bn2 = bn.fit(dag2, data = query2_limpio)
+```
+
+```{r}
+set.seed(1234)
+cpquery(bn2, event = (S == "Mujer"), evidence = ((T == "Privado") | T== "Público"), n = 10^6)
+```
+
+```{r}
+set.seed(1234)
+cpquery(bn2, event = (S == "Hombre"), evidence = ((T == "Privado") | T== "Público"), n = 10^6)
+```
+
+### Query 3
+
+```{r}
+query3 = read.csv("query3.csv")
+head(query3)
+```
+
+```{r}
+query3_limpio <- na.omit(query3)
+
+query3_limpio$T <- factor(query3_limpio$T,
+                          levels = c(1, 2),
+                          labels = c("Privado", "Público"))
+query3_limpio$E <- cut(query3_limpio$E,
+                       breaks = c(-Inf, 17, 25, 60, Inf),
+                       labels = c("Menor", "Adulto_joven", "Adulto", "Tercera_edad"),
+                       right = TRUE)
+
+query3_limpio$P <- factor(query3_limpio$P,
+                          levels = c(1,2,3,4,5,6,7,8,9,10,99),
+                          labels = c("Hogar","Trabajo","Estudiar","Compras","Recreación", "Llevar_recoger","Trámite","Médico","Religión","No_sabe","No_responde"))
+
+query3_limpio$S <- factor(query3_limpio$S,
+                          levels = c(1, 2),
+                          labels = c("Hombre", "Mujer"))
+query3_limpio
+```
+
+```{r}
+dag3 = empty.graph(nodes = c("S", "E", "P", "T"))
+arc_set3 = matrix(c("S", "P", 
+                    "E", "P",
+                    "P", "T"), 
+                 byrow = TRUE, ncol = 2,
+                 dimnames = list(NULL, c("from", "to")))
+arcs(dag3) = arc_set3
+dag3
+```
+```{r}
+bn3 = bn.fit(dag3, data = query3_limpio)
+```
+
+```{r}
+set.seed(1234)
+cpquery(bn3,
+                event = (S == "Mujer"), evidence = ((E == "Adulto_joven") & (T == "Público") & (P == "Hogar" | P == "Trabajo")), n = 10^6)  
+```
+
+### Query 4
+
+```{r}
+query4 = read.csv("query4.csv")
+head(query4)
+```
+
+```{r}
+query4_limpio <- na.omit(query4)
+
+query4_limpio$E <- factor(query4_limpio$E,
+                          levels = c(1,2,3,4),
+                          labels = c("Bajo", "Medio_bajo", "Medio_alto", "Alto"))
+
+# Municipio
+query4_limpio$M <- ifelse(query4_limpio$M == 3, "Calvillo", "Otro")
+query4_limpio$M <- factor(query4_limpio$M)
+query4_limpio
+```
+
+```{r}
+dag4 = empty.graph(nodes = c("M", "E"))
+arc_set4 = matrix(c("M", "E"), 
+                 byrow = TRUE, ncol = 2,
+                 dimnames = list(NULL, c("from", "to")))
+arcs(dag4) = arc_set4
+dag4
+``
+
+```{r}
+bn4 = bn.fit(dag4, data = query4_limpio)
+```
+
+```{r}
+cpquery(bn4, event = (M == "Calvillo"), evidence = ((E == "Bajo")), n = 10^6)
+```
+
 
 ## Conclusiones
 
