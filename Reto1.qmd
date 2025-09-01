@@ -42,7 +42,6 @@ Es por ello que trabajaremos con las siguientes librerías:
 -   `readr` es una librería de tidyverse especializada en leer y escribir datos de forma rápida y eficiente, por lo que los datos de la encuesta de movilidad son más faciles de importar por medio de esta librería.
 
 ```{r}
-#| eval: false
 library(bnlearn)
 library(readr)
 ```
@@ -50,8 +49,8 @@ library(readr)
 Y para graficar estas estructuras manejaremos `Rgraphviz`, que es la librería que `bnlearn` usa por defecto para dibujar los DAGs.
 
 ```{r}
-install.packages("BiocManager")
-BiocManager::install("Rgraphviz")
+#install.packages("BiocManager")
+#BiocManager::install("Rgraphviz")
 ```
 
 Aunque los arcos pueden interpretarse intuitivamente como causa–efecto, en este trabajo se consideran únicamente como relaciones de dependencia estadística. La red permite expresar la distribución global de todas las variables en términos de distribuciones locales más simples, lo que reduce la complejidad y hace el modelo más manejable. Además, la teoría de redes bayesianas ayuda a identificar qué variables son independientes entre sí, dado un conjunto de condiciones.
@@ -264,7 +263,7 @@ DAG_alternativa2
 ### Comparación
 
 | DAG | Nodos | Arcos | Avg. Markov blanket | Avg. Neighbourhood | Avg. Branching |
-|----|----|----|----|----|----|
+|------------|------------|------------|------------|------------|------------|
 | Original | 13 | 12 | 2.15 | 1.85 | 0.92 |
 | Alternativa 1 | 13 | 11 | 1.85 | 1.69 | 0.85 |
 | Alternativa 2 | 13 | 11 | 1.85 | 1.69 | 0.85 |
@@ -643,6 +642,8 @@ El uso de redes bayesianas multinomiales en este estudio permitió modelar de ma
 Las queries realizadas demostraron patrones claros de movilidad urbana: por ejemplo, se identificaron diferencias significativas en la preferencia de transporte entre hombres y mujeres, así como la influencia de factores como estrato socioeconómico y edad en la elección de medios de transporte. Además, la agrupación de variables complejas, como los distintos modos de transporte, permitió simplificar el análisis sin perder información relevante.
 
 En general, las redes bayesianas multinomiales se mostraron como una herramienta flexible y poderosa para la inferencia probabilística, la simulación de escenarios hipotéticos y la toma de decisiones basada en evidencia, ofreciendo insights claros que pueden apoyar la planificación urbana y políticas de movilidad más informadas.
+
+## Github: https://github.com/anaanarello/incertidumbre
 
 ## Referencias
 
