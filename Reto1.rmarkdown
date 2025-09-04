@@ -1,0 +1,653 @@
+---
+title: "Artículo 1: Redes bayesianas multinomiales"
+author: "Ana Ana Rello de Obeso, Getzemani Kinari Ríos Tavares, David Esteban Flores Medina"
+format:
+   html:
+     toc: true
+     html-math-method: katex
+     embed-resources: true
+     self-contained-math: true
+     df-print: kable
+editor: visual
+---
+
+## Abstract
+
+This study explores the application of multinomial Bayesian networks to model complex relationships between categorical variables in urban mobility datasets. By leveraging the probabilistic dependencies encoded in directed acyclic graphs (DAGs), these networks enable the estimation of conditional probabilities, simulation of hypothetical scenarios, and identification of independent and dependent factors influencing transportation choices. We focus on the 2017 Origin-Destination Survey, incorporating sociodemographic attributes and travel characteristics to construct and analyze Bayesian networks. The results demonstrate how multinomial Bayesian models can provide interpretable insights into urban travel behavior, support evidence-based transportation planning, and handle incomplete or heterogeneous data efficiently.
+
+## Introducción
+
+La comprensión de los patrones de movilidad urbana requiere herramientas estadísticas capaces de modelar relaciones complejas entre múltiples variables categóricas. En este contexto, las redes bayesianas multinomiales constituyen un enfoque especialmente adecuado, ya que permiten representar variables discretas con múltiples categorías y capturar las dependencias condicionales entre ellas de manera explícita. Cada nodo de la red representa una variable multinomial, mientras que los arcos dirigidos codifican las relaciones de dependencia probabilística entre las variables, formando un grafo acíclico dirigido (DAG).
+
+Estas redes ofrecen varias ventajas frente a los modelos estadísticos tradicionales. Permiten integrar información previa, gestionar datos incompletos y estimar probabilidades condicionales incluso en situaciones donde no se dispone de observaciones completas. Además, la estructura de la red facilita la interpretación de las interacciones entre variables, ya que cada nodo puede ser entendido como una distribución condicional sobre sus padres, y la factorización de la distribución conjunta en términos de estas distribuciones locales reduce significativamente la complejidad computacional.
+
+En el ámbito de la movilidad urbana, las redes bayesianas multinomiales permiten modelar de manera sistemática cómo factores sociodemográficos, como edad, sexo y estrato socioeconómico, influyen en la elección de medios de transporte y en el propósito de los viajes. Este enfoque no solo posibilita la estimación de probabilidades condicionales específicas, sino también la simulación de escenarios hipotéticos, lo que resulta fundamental para la formulación de políticas de transporte basadas en evidencia.
+
+El presente trabajo utiliza estas herramientas para analizar los datos de la Encuesta Origen-Destino 2017, demostrando la aplicabilidad de las redes bayesianas multinomiales en la modelación de variables discretas y en la inferencia probabilística de eventos de interés en contextos urbanos complejos.
+
+## Metodología
+
+Para poder realizar las queries sobre la encuesta de movilidad, se tuvo que considerar la siguiente **teoría de redes bayesianas**:
+
+Una red bayesiana es un grafo acíclico dirigido (DAG) en el que los nodos representan variables aleatorias y los arcos representan dependencias condicionales entre ellas. Gracias a esta estructura, la distribución conjunta de las variables se puede factorizar, por ejemplo:
+
+$$
+\mathbb{P}(A, B, C) = \mathbb{P}(A \mid C, B)\mathbb{P}(A)\mathbb{P}(B)
+$$
+
+Es por ello que trabajaremos con las siguientes librerías:
+
+-   `bnlearn` es la librería principal para trabajar con la teoría bayesiana en R ya que permite definir estructuras de DAGs, aprender la estructura de la red a partir de datos, ajustar parámetros y hacer inferencia probabilística.
+
+-   `readr` es una librería de tidyverse especializada en leer y escribir datos de forma rápida y eficiente, por lo que los datos de la encuesta de movilidad son más faciles de importar por medio de esta librería.
+
+```{r}
+library(bnlearn)
+library(readr)
+```
+
+Y para graficar estas estructuras manejaremos `Rgraphviz`, que es la librería que `bnlearn` usa por defecto para dibujar los DAGs.
+
+```{r}
+#install.packages("BiocManager")
+#BiocManager::install("Rgraphviz")
+```
+
+Aunque los arcos pueden interpretarse intuitivamente como causa–efecto, en este trabajo se consideran únicamente como relaciones de dependencia estadística. La red permite expresar la distribución global de todas las variables en términos de distribuciones locales más simples, lo que reduce la complejidad y hace el modelo más manejable. Además, la teoría de redes bayesianas ayuda a identificar qué variables son independientes entre sí, dado un conjunto de condiciones.
+
+Estas independencias simplifican los cálculos de probabilidad. Cada nodo requiere probabilidades (simples o condicionales) que pueden estimarse de los datos mediante máxima verosimilitud o asignarse mediante priors en un enfoque bayesiano, obteniendo así un modelo probabilístico estructurado a partir de la información observada. En este sentido, la teoría de redes bayesianas resulta especialmente útil para responder queries sobre la encuesta de movilidad, ya que permite representar las relaciones entre variables sociodemográficas y de transporte, calcular probabilidades a partir de la factorización e independencia condicional y manejar escenarios con datos incompletos o combinaciones nuevas de variables.
+
+Para el código se realiza lo siguiente:
+
+1.  Lectura y limpieza de datos: Cada query se basa en un subconjunto específico de los datos, extraído de archivos CSV. Antes de ajustar la red bayesiana, se eliminan observaciones incompletas usando na.omit(). Además, se convierten las variables a factores categóricos con niveles y etiquetas significativas. Por ejemplo, los estratos socioeconómicos (E), el tipo de transporte (T), el sexo (S) o el holograma del vehículo (H) se codifican para que R los interprete como variables discretas, requisito indispensable para bnlearn.
+
+2.  Definición del DAG (grafo acíclico dirigido): Cada red bayesiana se representa mediante un DAG, donde los nodos son variables y los arcos indican dependencias condicionales. Por ejemplo, en la Query 1, el estrato (E) influye en el tipo de transporte (T) y este a su vez en el holograma (H). Se utiliza empty.graph() para crear la estructura vacía y luego se agregan los arcos con arcs().
+
+3.  Ajuste de los parámetros de la red: Una vez definido el DAG, se estiman las distribuciones condicionales de cada nodo usando `bn.fit()`. El ajuste puede hacerse por máxima verosimilitud, que calcula las probabilidades de cada categoría dado sus padres en el DAG.
+
+4.  Cálculo de probabilidades condicionales (queries): Para responder preguntas específicas, se usa `cpquery()`, que estima la probabilidad condicional de un evento dado un conjunto de evidencias. Se pueden manejar múltiples condiciones combinadas con operadores lógicos & (y) y \| (o). Además, se establece una semilla con set.seed() para reproducibilidad.
+
+5.  Agrupamiento y categorización de variables complejas: Algunas variables numéricas, como la edad (E) en la Query 3, se transforman en rangos o categorías para adecuarlas al formato multinomial. Por ejemplo, se define Menor, Adulto_joven, Adulto y Tercera_edad usando cut():
+
+6.  Interpretación y aplicación de resultados: Cada `cpquery()` devuelve la probabilidad estimada de un evento de interés dado las condiciones especificadas, lo que permite analizar patrones de movilidad o perfil sociodemográfico.
+
+Este procedimiento se repite para cada conjunto de variables y cada query, adaptando los DAGs a las relaciones relevantes y ajustando las variables discretas a la naturaleza multinomial de la red.
+
+## Aplicación
+
+En este análisis, se trabajó con el dataset unificado de viajes (`tviaje.csv`), que contiene información sobre características sociodemográficas de los individuos, así como detalles de sus viajes y modos de transporte utilizados. Cada variable se transformó en un **factor categórico** para que fuera compatible con redes bayesianas discretas, permitiendo que `bnlearn` interprete correctamente las distribuciones multinomiales de cada nodo.
+
+Se definieron las variables más relevantes:
+
+-   `sexo` y `edad` de los individuos.\
+-   `estrato` socioeconómico de la vivienda.\
+-   `p5_13` (propósito del viaje) y `p5_25` (tipo de holograma del vehículo).\
+-   Variables binarias para modos de transporte (`p5_14_01` a `p5_14_12`).\
+-   `dto_origen` como municipio o delegación de residencia.
+
+Luego, se construyó un **grafo acíclico dirigido (DAG)** con nodos correspondientes a las variables mencionadas y arcos que representan dependencias condicionales basadas en relaciones lógicas y de influencia esperadas, por ejemplo:
+
+$$
+\text{estrato} \rightarrow p5\_14\_01 \rightarrow p5\_25
+$$
+
+$$
+\text{sexo} \rightarrow p5\_13, \quad \text{edad} \rightarrow p5\_13
+$$
+
+Estas relaciones permiten factorizar la **distribución conjunta** de todas las variables del DAG en términos de distribuciones condicionales locales:
+
+$$
+\mathbb{P}(X_1, X_2, \dots, X_n) = \prod_{i=1}^{n} \mathbb{P}(X_i \mid \text{Padres}(X_i))
+$$
+
+donde $\text{Padres}(X_i)$ indica el conjunto de nodos que influyen directamente en $X_i$ según la estructura del DAG.
+
+### Ajuste de parámetros mediante máxima verosimilitud (MLE)
+
+Para estimar las probabilidades condicionales de cada nodo multinomial, se emplea la **máxima verosimilitud**, que consiste en encontrar los parámetros $\theta$ que maximizan la probabilidad de observar los datos reales dados los padres de cada nodo:
+
+$$
+\hat{\theta} = \arg\max_\theta \prod_{j=1}^{N} \mathbb{P}(x_j \mid \text{Padres}(x_j); \theta)
+$$
+
+En el caso de variables multinomiales discretas, esto se traduce en contar la frecuencia relativa de cada combinación de niveles de los nodos hijos dado cada combinación de niveles de los padres:
+
+$$
+\hat{\mathbb{P}}(X_i = x \mid \text{Padres}(X_i) = \text{pa}) = 
+\frac{N(X_i = x, \text{Padres}(X_i) = \text{pa})}{\sum_{x'} N(X_i = x', \text{Padres}(X_i) = \text{pa})}
+$$
+
+donde $N(\cdot)$ es el número de observaciones que cumplen la condición indicada. Esta es precisamente la forma en la que `bn.fit(..., method = "mle")` calcula las tablas de probabilidad condicionales (CPT) en `R`.
+
+```{r}
+# Cargar datos unificados
+tviaje <- read.csv("~/Desktop/semestre 5/semestre 5/repositorio/data/tviaje.csv", stringsAsFactors = TRUE)
+```
+
+```{r}
+head(tviaje)
+```
+
+```{r}
+tv = tviaje[, c("p5_6", "p5_7_6", "p5_13", "p5_14_01", "p5_14_02", "p5_14_04", "p5_14_05", "p5_14_07", "p5_14_08", "p5_14_09", "p5_14_10", "p5_14_11", "p5_14_12", "p5_14_14", "p5_20", "p5_26", "p5_25", "estrato", "tloc", "sexo", "edad", "p5_7_7")]
+
+head(tv)
+```
+
+```{r}
+tv$estrato = factor(tv$estrato, levels = c(1,2,3,4),
+                     labels = c("Bajo","Medio_bajo","Medio_alto","Alto"))
+
+tv$sexo = factor(tv$sexo, levels = c(1,2), labels = c("Hombre","Mujer"))
+
+tv$p5_25 = factor(tv$p5_25, levels = c(1,2,3,4,9),
+                   labels = c("Holograma00","Holograma0","Holograma1","Holograma2","No_sabe"))
+
+head(tv)
+```
+
+```{r}
+tv$edad = factor(tv$edad)
+tv$p5_7_7 = factor(tv$p5_7_7)
+```
+
+```{r}
+nodes <- c(
+  "sexo","edad","p5_13",
+  "p5_14_01","p5_25","p5_14_07",
+  "p5_14_02","p5_14_04","p5_14_05","p5_14_08","p5_14_12",
+  "estrato", "p5_7_7"
+)
+
+nodes <- intersect(nodes, names(tv))
+
+dag <- empty.graph(nodes = nodes)
+
+arc_set <- matrix(c(
+  "sexo","p5_13",
+  "edad","p5_13",
+  "estrato","p5_14_01",
+  "p5_14_01","p5_25",
+  "p5_13","p5_14_01",
+  "sexo","p5_14_02",
+  "sexo","p5_14_04",
+  "sexo","p5_14_05",
+  "sexo","p5_14_08",
+  "sexo","p5_14_12",
+  "sexo", "p5_14_07",
+  "estrato", "p5_7_7"
+), byrow = TRUE, ncol = 2, dimnames = list(NULL, c("from","to")))
+
+arc_set <- arc_set[arc_set[,1] %in% nodes & arc_set[,2] %in% nodes, , drop = FALSE]
+
+arcs(dag) <- arc_set
+dag
+graphviz.plot(dag, shape = "ellipse")
+```
+
+###DAGs alternativas
+
+```{r}
+nodes2 <- c(
+  "sexo","edad","p5_13",
+  "p5_14_01","p5_25","p5_14_07",
+  "p5_14_02","p5_14_04","p5_14_05","p5_14_08","p5_14_12",
+  "estrato", "p5_7_7"
+)
+
+nodes2 <- intersect(nodes2, names(tv))
+
+DAG_alternativa1 <- empty.graph(nodes = nodes2)
+
+arc_set1 <- matrix(c(
+  "sexo","p5_13",
+  "edad","p5_13",
+  "estrato","p5_14_01",
+  "estrato","p5_7_7",
+  "p5_13","p5_14_02",
+  "p5_13","p5_14_04",
+  "p5_13","p5_14_05",
+  "p5_13","p5_14_07",
+  "p5_14_01","p5_25",
+  "sexo","p5_14_08",
+  "sexo","p5_14_12"
+), byrow = TRUE, ncol = 2, dimnames = list(NULL, c("from","to")))
+
+# Filtrar solo arcos válidos usando nodes2
+arc_set1 <- arc_set1[arc_set1[,1] %in% nodes2 & arc_set1[,2] %in% nodes2, , drop = FALSE]
+
+arcs(DAG_alternativa1) <- arc_set1
+
+graphviz.plot(DAG_alternativa1, shape = "ellipse", layout = "dot")
+DAG_alternativa1
+```
+
+```{r}
+nodes3 <- c(
+  "sexo","edad","p5_13",
+  "p5_14_01","p5_25","p5_14_07",
+  "p5_14_02","p5_14_04","p5_14_05","p5_14_08","p5_14_12",
+  "estrato", "p5_7_7"
+)
+
+nodes3 <- intersect(nodes3, names(tv))
+
+DAG_alternativa2 <- empty.graph(nodes = nodes3)
+
+arc_set2 <- matrix(c(
+  "sexo","p5_14_01",
+  "sexo","p5_14_02",
+  "sexo","p5_14_04",
+  "sexo","p5_14_05",
+  "sexo","p5_14_08",
+  "edad","p5_13",
+  "edad","p5_14_07",
+  "estrato","p5_25",
+  "estrato","p5_7_7",
+  "p5_13","p5_14_01",
+  "p5_13","p5_14_12"
+), byrow = TRUE, ncol = 2, dimnames = list(NULL, c("from","to")))
+
+# Filtrar correctamente usando nodes3
+arc_set2 <- arc_set2[arc_set2[,1] %in% nodes3 & arc_set2[,2] %in% nodes3, , drop = FALSE]
+
+# Asignar arcos
+arcs(DAG_alternativa2) <- arc_set2
+
+# Visualizar con layout top-to-bottom
+graphviz.plot(DAG_alternativa2, shape = "ellipse", layout = "dot")
+DAG_alternativa2
+```
+
+### Comparación
+
+| DAG | Nodos | Arcos | Avg. Markov blanket | Avg. Neighbourhood | Avg. Branching |
+|------------|------------|------------|------------|------------|------------|
+| Original | 13 | 12 | 2.15 | 1.85 | 0.92 |
+| Alternativa 1 | 13 | 11 | 1.85 | 1.69 | 0.85 |
+| Alternativa 2 | 13 | 11 | 1.85 | 1.69 | 0.85 |
+
+Observaciones:
+
+-   La original tiene más arcos y un Markov blanket más grande, lo que indica que las variables están más interconectadas. Esto puede capturar más dependencias reales, pero también puede generar sobreajuste si algunos arcos son débiles.
+
+-   Las alternativas reducen un arco, simplifican la red y tienen menor complejidad, lo que ayuda a interpretabilidad pero podría omitir relaciones significativas.
+
+```{r}
+tv$p5_6 <- factor(tv$p5_6,
+                  levels = c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,99),
+                  labels = c("Hogar", "Escuela", "Oficina", "Fábrica", "Tienda", 
+                             "Centro cultural", "Otra vivienda", "Hospital", 
+                             "Restaurante", "Deportivo", "Estación TP", "Construcción", 
+                             "Otros servicios", "Recinto religioso", "Vía pública", 
+                             "Otro", "No sabe"))
+
+tv$p5_7_6 <- factor(tv$p5_7_6,
+                    levels = c(3, 1:570),
+                    labels = c("Calvillo", rep("Otros", 570)))
+
+tv$p5_13 <- factor(tv$p5_13,
+                   levels = c(1,2,3,4,5,6,7,8,9,10,99),
+                   labels = c("Hogar","Trabajo","Estudiar","Compras","Convivir",
+                              "Llevar/recoger","Trámite","Médico","Religioso","Otro","No sabe"))
+
+# Transporte: todos 1 = Usó, 2 = No usó
+cols_transporte <- c("p5_14_01","p5_14_02","p5_14_04","p5_14_05",
+                     "p5_14_07","p5_14_08","p5_14_09","p5_14_10",
+                     "p5_14_11","p5_14_12","p5_14_14")
+
+for (col in cols_transporte) {
+  tv[[col]] <- factor(tv[[col]],
+                      levels = c(1,2),
+                      labels = c("Usó","No usó"))
+}
+
+tv$p5_20 <- factor(tv$p5_20,
+                   levels = c(1,2,3,4,9),
+                   labels = c("Estacionamiento público", "Estacionamiento privado",
+                              "Vía pública", "Cochera propia", "No sabe"))
+
+tv$p5_26 <- factor(tv$p5_26,
+                   levels = 0:6,
+                   labels = c("Ninguna", "1 parada", "2 paradas", "3 paradas",
+                              "4 paradas", "5 paradas", "6 paradas"))
+
+
+tv$tloc <- factor(tv$tloc,
+                  levels = c(1,2,3,4),
+                  labels = c("100k+ habitantes","15k-99k","2.5k-14.9k","<2.5k"))
+
+# edad: mejor mantener como numérica, pero convertir 97 y 99 a categorías especiales
+tv$edad <- factor(tv$edad,
+                  levels = c(1:96,97,99),
+                  labels = c(as.character(1:96),"97+","No sabe"))
+
+head(tv)
+```
+
+```{r}
+tv <- droplevels(tv)
+```
+
+```{r}
+tv <- tv[, sapply(tv, function(x) length(unique(na.omit(x))) > 1)]
+```
+
+### Hill Climbing
+
+```{r}
+best_dag = hc(tv)
+graphviz.plot(best_dag, shape = "ellipse")
+```
+
+```{r}
+tv_fit = bn.fit(best_dag, data = tv)
+```
+
+### Queries
+
+Para esto se tuvo en consideración lo que significaban las variables en su diccionario. El cual se adjunta a continuación: p5_6: ¿Qué tipo de lugar es el origen de su viaje?
+
+1 ( Hogar), 2 (Escuela), 3 (Oficina), 4 (Fábrica), 5 (Tienda), 6 (Centro cultural), 7 (Otra vivienda), 8 (Hospital), 9 (Restaurante), 10 (Deportivo), 11 (Estación de transporte público), 12 (Construcción), 13 (Otros servicios), 14 (Recinto religioso), 15 (Vía pública), 16 (Otro), 99 (No sabe)
+
+p5_7_6: 3 (Calvillo), 1-570/3 (Todos los demas menos la 3)
+
+p5_13: ¿Cuál fue el propósito del viaje? 1 (Hogar), 2 (Trabajo), 3 (Estudiar), 4 (Compras), 5 (Convivir), 6 (Llevar o recoger alguien), 7 (Hacer un tramite), 8 (Ir al medico), 9 (Ir a un acto religioso), 10 (Otro), 99 (No sabe)
+
+p5_14_01: Dígame por favor sí utilizó 01 automóvil como medio de transporte: 1 (Útilizo), 2 (No útilizo)
+
+p5_14_02: Dígame por favor sí utilizó 02 micro como medio de transporte: 1 (Útilizo), 2 (No útilizo)
+
+p5_14_04: Dígame por favor sí utilizó 04 taxi como medio de transporte: 1 (Útilizo), 2 (No útilizo)
+
+p5_14_05: Dígame por favor sí utilizó 05 metro como medio de transporte: 1 (Útilizo), 2 (No útilizo)
+
+p5_14_07: Dígame por favor sí utilizó 07 bicicleta como medio de transporte: 1 (Útilizo), 2 (No útilizo)
+
+p5_14_08: Dígame por favor sí utilizó 08 autobús como medio de transporte: 1 (Útilizo), 2 (No útilizo)
+
+p5_14_09: Dígame por favor sí utilizó 09 moto como medio de transporte: 1 (Útilizo), 2 (No útilizo)
+
+p5_14_10: Dígame por favor sí utilizó 10 trolebús como medio de transporte: 1 (Útilizo), 2 (No útilizo)
+
+p5_14_11: Dígame por favor sí utilizó 11 metrobús como medio de transporte: 1 (Útilizo), 2 (No útilizo)
+
+p5_14_12: Dígame por favor sí utilizó 12 tren ligero como medio de transporte: 1 (Útilizo), 2 (No útilizo)
+
+p5_14_14: Dígame por favor sí utilizó 14 caminó en la calle como medio de transporte: 1 (Útilizo), 2 (No útilizo)
+
+p5_20: ¿donde se estaciono? 1 (Estacionamiento público), 2 (Estacionamiento privado), 3 (Vía pública), 4 (Cochera propia), 9 (No sabe)
+
+p5_26: durante su viaje, ¿cuántas paradas intermedias hizo menores a 10 minutos y sin pago adicional por transporte? 0 (Ninguna), 1 (1 parada), 2 (2 paradas), 3 (3 paradas), 4 (4 paradas), 5 (5 paradas), 6 (6 paradas)
+
+p5_25: El automóvil que manéjo el (día de viajes) ¿qué holograma tiene?
+
+estrato: 1 (Bajo), 2 (Medio bajo), 3 (Medio alto), 4 (Alto)
+
+tloc: 1 (Localidades mayores de 100000 habitantes), 2 (Localidades de 15000 a 99999 habitantes), 3 (Localidades de 2500 a 14999 habitantes), 4 (Localidades menores de 2500 habitantes)
+
+sexo: 1 (Hombre), 2 (Mujer)
+
+edad: 1-96 años, 97 (y más años cumplidos), 99 (No sabe) \#### Primera *¿Cuál es la probabilidad de tener autos o camionetas con holograma 00 ó 0, dado que se tiene un estrato alto o medio alto?* $$
+\mathbb{P}(Estrato \in \{\text{Alto, Medio alto}\} \mid p5_{25} \in \{\text{Holograma 00, Holograma 0}\}, p5_{14_{01}} = \text{Usó})
+$$
+
+```{r}
+set.seed(1234)
+cpquery(tv_fit, event = (estrato == "Alto"), evidence = ((p5_14_01 == "Usó") & ((p5_25 == "Holograma00") | (p5_25 == "Holograma0"))), n = 10^6)
+```
+
+#### Segunda
+
+*¿Qué es más probable en los viajes de mujeres: que usen automóvil particular o transporte público?*
+
+$$
+\mathbb{P}(p5_{14_{01}} = \text{Privado} \mid Sexo = \text{Mujer})
+$$
+
+```{r}
+set.seed(1234)
+cpquery(tv_fit, event = (sexo == "Mujer"), evidence = (p5_14_01 == "Usó") , n = 10^6)
+```
+
+$$
+\mathbb{P}(p5_{14_{01}} = \text{Público} \mid S = \text{Mujer})
+$$
+
+```{r}
+set.seed(1234)
+cpquery(tv_fit, event = (sexo == "Mujer"), evidence = ((p5_14_02 == "Usó")| (p5_14_05 == "Usó")| (p5_14_07 == "Usó")| (p5_14_10 == "Usó")| (p5_14_11 == "Usó")| (p5_14_12 == "Usó")), n = 10^6)
+```
+
+Es ligeramente más probable que una mujer use cualquier tipo de transporte público a uno automóvil particular.
+
+#### Tercera
+
+*¿Cuál es la probabilidad de que un viaje sea de una mujer entre 30 y 40 años, dado que el propósito del viaje era ir a trabajar o al hogar, y usó bicicleta como medio de transporte?* $$
+\mathbb{P}(S = \text{Mujer}, Edad \in [30,40] \mid Motivo \in \{\text{Hogar, Trabajo}\}, Transporte = \text{Bicicleta})
+$$
+
+```{r}
+set.seed(1234)
+cpquery(tv_fit, event = (sexo == "Mujer") & ((edad = 30)| (edad = 31)| (edad = 32)| (edad = 33)| (edad = 34)| (edad = 35)| (edad = 36)| (edad = 37)| (edad = 38)| (edad = 39)| (edad = 40)), evidence = (((p5_6 == "Hogar")|(p5_6 == "Trabajar"))& (p5_14_07 == "Usó")), n = 10^6)
+```
+
+Tomando en cuenta que la pregunta p5_14_07 es *Dígame por favor sí utilizó 07 bicicleta como medio de transporte: 1 (Útilizo), 2 (No útilizo)*
+
+#### Cuarta
+
+*¿Cuál es la probabilidad de que una persona sea de estrato bajo dado que vive en Calvillo?* $$
+\mathbb{P}(Estrato = \text{Bajo} \mid Municipio = \text{Calvillo})
+$$
+
+```{r}
+set.seed(1234)
+cpquery(tv_fit, event = (estrato == "Bajo"), evidence = (p5_7_6 == "Calvillo") , n = 10^6)
+```
+
+### Procedimiento Adicional
+
+Aparte de manejar estas querys de la manera propuesta por el profesor, se plantearon unas DAGs aparte para ver si difería mucho la probabilidad estando en una DAG grande y general. Por lo que se tienen .csv aparte para tener en cuenta solo la información relevante, los cuales pueden ser consultados en el github.
+
+De todas las carpetas de datos recibidas (Viviendas, Hogares, Características sociodemográficas, Viajes realizados y Transporte), filtramos únicamente aquellas que resultan relevantes para responder nuestras consultas: **Viajes realizados** y **Características sociodemográficas**.
+
+#### Query 1
+
+Para la primera query, vimos que el dataset más relevante era viajes, ya que la probabilidad a calcular se basaba en lo siguiente: *¿Cuál es la probabilidad de tener autos o camionetas con holograma 00 ó 0, dado que se tiene un estrato alto o medio alto?*
+
+Observaciones: - Los Holograma 00 y 0 son los más restringidos a la circulación porque son los autos más contaminantes. - El holograma 2 es el menos restringido.
+
+Variables consideradas: - E: Estrato: 1 (Bajo), 2 (Medio bajo), 3 (Medio alto), 4 (Alto) - T: Medio de transporte: 1 (Utilizo), 2 (No utilizo) - H: Holograma: 1 (Holograma 00), 2 (Holograma 0), 3 (Holograma 1), 4 (Holograma 2), 9 (No sabe)
+
+Preguntas de la encuesta usadas para crear los nodos: - Pregunta 5.14: Dígame por favor sí utilizó 01 automóvil como medio de transporte - Pregunta 5.25: El automóvil que manejó el día de viaje, ¿qué holograma tiene?
+
+```{r}
+query1 = read.csv("~/Desktop/semestre 5/semestre 5/repositorio/data/query1.csv")
+head(query1)
+```
+
+```{r}
+query1_limpio = na.omit(query1)
+query1_limpio$E <- factor(query1_limpio$E,
+                          levels = c(1, 2, 3, 4),
+                          labels = c("Bajo", "Medio_bajo", "Medio_alto", "Alto"))
+
+query1_limpio$T <- factor(query1_limpio$T,
+                          levels = c(1, 2),
+                          labels = c("Utilizo", "No_utilizo"))
+
+query1_limpio$H <- factor(query1_limpio$H,
+                          levels = c(1, 2, 3, 4, 9),
+                          labels = c("Holograma00", "Holograma0", "Holograma1", "Holograma2", "No_sabe"))
+head(query1_limpio)
+```
+
+```{r}
+dag1 = empty.graph(nodes = c("E", "T", "H"))
+arc_set1 = matrix(c("E", "T", 
+                    "T", "H"), 
+                 byrow = TRUE, ncol = 2,
+                 dimnames = list(NULL, c("from", "to")))
+arcs(dag1) = arc_set1
+graphviz.plot(dag1, shape = "ellipse")
+```
+
+```{r}
+bn1 = bn.fit(dag1, data = query1_limpio)
+```
+
+```{r}
+set.seed(1234)
+cpquery(bn1, event = (E == "Alto"), evidence = ((T == "Utilizo") & ((H == "Holograma00") | (H == "Holograma0"))), n = 10^6)
+```
+
+#### Query 2
+
+```{r}
+query2 = read.csv("~/Desktop/semestre 5/semestre 5/repositorio/data/query2.csv")
+head(query2)
+```
+
+```{r}
+query2_limpio <- na.omit(query2)
+
+query2_limpio$T <- factor(query2_limpio$T,
+                          levels = c(1, 2),
+                          labels = c("Privado", "Público"))
+
+query2_limpio$S <- factor(query2_limpio$S,
+                          levels = c(1, 2),
+                          labels = c("Hombre", "Mujer"))
+
+head(query2_limpio)
+```
+
+```{r}
+dag2 = empty.graph(nodes = c("S", "T"))
+arc_set2 = matrix(c("S", "T"), 
+                 byrow = TRUE, ncol = 2,
+                 dimnames = list(NULL, c("from", "to")))
+arcs(dag2) = arc_set2
+graphviz.plot(dag2, shape = "ellipse")
+```
+
+```{r}
+bn2 = bn.fit(dag2, data = query2_limpio)
+```
+
+```{r}
+set.seed(1234)
+cpquery(bn2, event = (T == "Privado"), evidence = (S == "Mujer"), n = 10^6)
+```
+
+```{r}
+set.seed(1234)
+cpquery(bn2, event = (T == "Público"), evidence = (S == "Mujer"), n = 10^6)
+```
+
+#### Query 3
+
+```{r}
+query3 = read.csv("~/Desktop/semestre 5/semestre 5/repositorio/data/query3.csv")
+head(query3)
+```
+
+```{r}
+query3_limpio <- na.omit(query3)
+
+query3_limpio$T <- factor(query3_limpio$T,
+                          levels = c(1, 2),
+                          labels = c("Privado", "Público"))
+query3_limpio$E <- cut(query3_limpio$E,
+                       breaks = c(-Inf, 17, 25, 60, Inf),
+                       labels = c("Menor", "Adulto_joven", "Adulto", "Tercera_edad"),
+                       right = TRUE)
+
+query3_limpio$P <- factor(query3_limpio$P,
+                          levels = c(1,2,3,4,5,6,7,8,9,10,99),
+                          labels = c("Hogar","Trabajo","Estudiar","Compras","Recreación", "Llevar_recoger","Trámite","Médico","Religión","No_sabe","No_responde"))
+
+query3_limpio$S <- factor(query3_limpio$S,
+                          levels = c(1, 2),
+                          labels = c("Hombre", "Mujer"))
+head(query3_limpio)
+```
+
+```{r}
+dag3 = empty.graph(nodes = c("S", "E", "P", "T"))
+arc_set3 = matrix(c("S", "P", 
+                    "E", "P",
+                    "P", "T"), 
+                 byrow = TRUE, ncol = 2,
+                 dimnames = list(NULL, c("from", "to")))
+arcs(dag3) = arc_set3
+graphviz.plot(dag3, shape = "ellipse")
+```
+
+```{r}
+bn3 = bn.fit(dag3, data = query3_limpio)
+```
+
+```{r}
+set.seed(1234)
+cpquery(bn3,
+                event = (S == "Mujer"), evidence = ((E == "Adulto_joven") & (T == "Público") & (P == "Hogar" | P == "Trabajo")), n = 10^6)  
+```
+
+#### Query 4
+
+```{r}
+query4 = read.csv("~/Desktop/semestre 5/semestre 5/repositorio/data/query4.csv")
+head(query4)
+```
+
+```{r}
+query4_limpio <- na.omit(query4)
+
+query4_limpio$E <- factor(query4_limpio$E,
+                          levels = c(1,2,3,4),
+                          labels = c("Bajo", "Medio_bajo", "Medio_alto", "Alto"))
+
+# Municipio
+query4_limpio$M <- ifelse(query4_limpio$M == 3, "Calvillo", "Otro")
+query4_limpio$M <- factor(query4_limpio$M)
+head(query4_limpio)
+```
+
+```{r}
+dag4 = empty.graph(nodes = c("M", "E"))
+arc_set4 = matrix(c("M", "E"), 
+                 byrow = TRUE, ncol = 2,
+                 dimnames = list(NULL, c("from", "to")))
+arcs(dag4) = arc_set4
+graphviz.plot(dag4, shape = "ellipse")
+```
+
+```{r}
+bn4 = bn.fit(dag4, data = query4_limpio)
+```
+
+```{r}
+set.seed(1234)
+cpquery(bn4, event = (M == "Calvillo"), evidence = ((E == "Bajo")), n = 10^6)
+```
+
+Como vemos, aquí si hay un error bastante grande en comparación porque nos niega la posibilidad de que exista alguien cuando en la DAG general si nos menciona la posibilidad de que haya personas con estas características.
+
+## Conclusiones
+
+El uso de redes bayesianas multinomiales en este estudio permitió modelar de manera efectiva las relaciones probabilísticas entre variables sociodemográficas y modos de transporte en la Encuesta Origen-Destino 2017. Gracias a la estructura de DAGs, fue posible factorizar la distribución conjunta de múltiples variables, estimar probabilidades condicionales precisas y manejar datos incompletos de manera eficiente.
+
+Las queries realizadas demostraron patrones claros de movilidad urbana: por ejemplo, se identificaron diferencias significativas en la preferencia de transporte entre hombres y mujeres, así como la influencia de factores como estrato socioeconómico y edad en la elección de medios de transporte. Además, la agrupación de variables complejas, como los distintos modos de transporte, permitió simplificar el análisis sin perder información relevante.
+
+En general, las redes bayesianas multinomiales se mostraron como una herramienta flexible y poderosa para la inferencia probabilística, la simulación de escenarios hipotéticos y la toma de decisiones basada en evidencia, ofreciendo insights claros que pueden apoyar la planificación urbana y políticas de movilidad más informadas.
+
+## Github: https://github.com/anaanarello/incertidumbre
+
+## Referencias
+
+1.  Inzaugarat, M. E. (2024, November 22). ¿Qué es un DAG? Guía práctica con ejemplos. https://www.datacamp.com/es/blog/what-is-a-dag
+2.  Cointelegraph. (2020, April 2). ¿Qué es un DAG y cómo funcionan? Cointelegraph. https://es.cointelegraph.com/explained/what-is-a-dag-and-how-do-it-work
+3.  RPubs - DAGs. (n.d.). https://rpubs.com/fbucheli/1264015
+
