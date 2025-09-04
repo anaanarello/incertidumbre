@@ -1,0 +1,25 @@
+---
+title: "Reto 2: Calidad del Aire"
+format:
+   html:
+     toc: true
+     html-math-method: katex
+     embed-resources: true
+     self-contained-math: true
+     df-print: kable
+editor: visual
+---
+#Librerías
+```{r}
+library(bnlearn)
+library(readr)
+```
+
+## Unir códigos y dales el formato correcto para la lectura
+
+# Unir códigos
+```{r}
+base1 <- read.csv("~/Desktop/semestre 5/semestre 5/repositorio/data/tviaje.csvensanut2022_muestras.csv")
+```
+
+# Darle el formato correcto
