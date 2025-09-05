@@ -60,3 +60,23 @@ glimpse(base3)
 base_completa_salud <- left_join(base1, base2, by = "folio_i")
 head(base_completa_salud)
 ```
+```{r}
+aire_fija <- base3 %>% filter(tipo_de_fuente == "Fuentes fijas")
+head(aire_fija)
+```
+```{r}
+head(base_completa_salud)
+
+```
+
+```{r}
+base_completa_salud <- base_completa_salud %>%
+  mutate(nombre_estado = str_remove(desc_ent, "^[0-9]+\\s"))  # elimina el código y el espacio inicial
+
+datos_completos <- left_join(base_completa_salud, aire_fija, by = c("desc_ent" = "entidad_federativa"))
+head(datos_completos)
+```
+```{r}
+glimpse(datos_completos)
+```
+
