@@ -263,7 +263,7 @@ DAG_alternativa2
 ### Comparación
 
 | DAG | Nodos | Arcos | Avg. Markov blanket | Avg. Neighbourhood | Avg. Branching |
-|------------|------------|------------|------------|------------|------------|
+|----|----|----|----|----|----|
 | Original | 13 | 12 | 2.15 | 1.85 | 0.92 |
 | Alternativa 1 | 13 | 11 | 1.85 | 1.69 | 0.85 |
 | Alternativa 2 | 13 | 11 | 1.85 | 1.69 | 0.85 |

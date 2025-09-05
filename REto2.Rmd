@@ -1,0 +1,62 @@
+---
+title: "Reto 2: Calidad del Aire"
+format:
+   html:
+     toc: true
+     html-math-method: katex
+     embed-resources: true
+     self-contained-math: true
+     df-print: kable
+editor: visual
+---
+---
+title: "Reto 2: Calidad del Aire"
+author: "Ana Ana Rello de Obeso"
+format:
+   html:
+     toc: true
+     html-math-method: katex
+     embed-resources: true
+     self-contained-math: true
+     df-print: kable
+editor: visual
+---
+
+
+```{r}
+library(tidyverse)
+library(bnlearn)
+library(janitor)
+library(dplyr)
+```
+
+
+```{r}
+base1 = read_delim("~/Desktop/semestre 5/semestre 5/repositorio/data/ensanut2022_muestras.csv", delim = ";")
+base2 = read_delim("~/Desktop/semestre 5/semestre 5/repositorio/data/ensanut2022_socdem.csv", delim = ";")
+base3 = read_csv("~/Desktop/semestre 5/semestre 5/repositorio/data/calidad_aire_2025.csv")
+```
+
+```{r}
+base1 = base1 |>
+            clean_names()
+
+base2 = base2 |>
+            clean_names()
+
+base3 = base3 |>
+            clean_names()
+```
+
+```{r}
+glimpse(base1)
+```
+```{r}
+glimpse(base3)
+```
+
+
+```{r}
+base_completa_salud <- left_join(base1, base2, by = "folio_i")
+head(base_completa_salud)
+```

@@ -19,7 +19,7 @@ library(readr)
 
 # Unir códigos
 ```{r}
-base1 <- read.csv("~/Desktop/semestre 5/semestre 5/repositorio/data/tviaje.csvensanut2022_muestras.csv")
+base1 <- read.csv("/Desktop/semestre5/semestre5/repositorio/data/tviaje.csvensanut2022_muestras.csv")
 ```
 
 # Darle el formato correcto
