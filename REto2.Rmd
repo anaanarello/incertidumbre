@@ -1,16 +1,5 @@
 ---
 title: "Reto 2: Calidad del Aire"
-format:
-   html:
-     toc: true
-     html-math-method: katex
-     embed-resources: true
-     self-contained-math: true
-     df-print: kable
-editor: visual
----
----
-title: "Reto 2: Calidad del Aire"
 author: "Ana Ana Rello de Obeso"
 format:
    html:
