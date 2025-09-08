@@ -10,6 +10,7 @@ format:
      df-print: kable
 editor: visual
 ---
+
 ```{r}
 library(tidyverse)
 library(bnlearn)
@@ -43,7 +44,6 @@ aire_fija <- base3 %>%
   filter(Tipo_de_Fuente == "Fuentes fijas")
 ```
 
-
 ```{r}
 base_completa_salud <- base_completa_salud %>%
   mutate(desc_ent = stri_trans_general(str_remove(desc_ent, "^[0-9]+\\s"), "Latin-ASCII"),
@@ -59,16 +59,17 @@ aire_fija_resum <- aire_fija %>%
 base_final <- left_join(base_completa_salud, aire_fija_resum,
                         by = c("desc_ent" = "Entidad_federativa"))
 ```
+
 ✏️ Una vez que cuenten con una selección de variables que les satisfaga, construyan el conjunto de datos que utilizarán. Para ello será necesario unir diferentes tablas para obtener la información necesaria. En el caso de los contaminantes del aire asumiremos lo siguiente.
 
 La información que tenemos es comparable con las condiciones a las que estuvieron sujetas las personas que participaron en la ENSANUT 2022, es decir, asumiremos que los valores de reporta la SEMARNAT para 2025 son buenas estimaciones para esos contaminantes en 2022.
 
 Necesitarán considerar, ya sea sólo en el Estado donde reside la persona entrevistada o su municipio, para cruzar esta información con la que contiene la tabla sobre calidad del aire y deberán elegir una sola fuente de información de esta última tabla para obtener los datos sobre los contaminantes para cada persona
 
-Hint: Consideren la fuente que tenga menos valores faltantes, por ejemplo, las fuentes fijas casi siempre contienen información para todos los municipios.
-✏️ Ajusten una GBN para cada una de las DAG propuestas.
+Hint: Consideren la fuente que tenga menos valores faltantes, por ejemplo, las fuentes fijas casi siempre contienen información para todos los municipios. ✏️ Ajusten una GBN para cada una de las DAG propuestas.
 
 ## DAG 1
+
 ```{r}
 data_sub1 <- base_final %>%
   select(entidad.y = entidad.x, 
@@ -90,8 +91,6 @@ head(data_sub1)
 dag_string1 <- "[ENTIDAD][MUNICIPIO|ENTIDAD][CO|MUNICIPIO][NOX|MUNICIPIO][SO2|MUNICIPIO][COV|MUNICIPIO][NH3|MUNICIPIO][PM25|MUNICIPIO][PM10|MUNICIPIO][ESTRATO|MUNICIPIO][ENFERMO|CO:NOX:SO2:COV:NH3:PM25:PM10:ESTRATO][ENFERMEDAD|ENFERMO][PCR|ENFERMEDAD][CREAT|ENFERMEDAD][URIC|ENFERMEDAD][FERR|ENFERMEDAD][VITD|ENFERMEDAD][COVID|ESTRATO][SECUELAS|COVID][ANIOCOVID|COVID]"
 
 dag1 <- model2network(dag_string1)
-
-graphviz.plot(dag1, shape = "ellipse")
 ```
 
 ```{r}
@@ -114,7 +113,26 @@ data_sub1 <- data_sub1 %>%
 
 # Pasar a numérico todo lo que se necesita
 data_sub1[] <- lapply(data_sub1, function(x) as.numeric(as.character(x)))
+```
+
+```{r}
+dag1_fit <- bn.fit(dag1, data = data_sub1)
+# Modelos nulos (solo intercepto) para cada contaminante
+mod_co    <- lm(CO ~ 1, data = data_sub1)
+mod_nox   <- lm(NOX ~ 1, data = data_sub1)
+mod_so2   <- lm(SO2 ~ 1, data = data_sub1)
+mod_cov   <- lm(COV ~ 1, data = data_sub1)
+mod_pm25  <- lm(PM25 ~ 1, data = data_sub1)
+mod_pm10  <- lm(PM10 ~ 1, data = data_sub1)
+mod_nh3   <- lm(NH3 ~ 1, data = data_sub1)
+mod_estrato   <- lm(ESTRATO ~ 1, data = data_sub1)
+mod_entidad   <- lm(ENTIDAD ~ 1, data = data_sub1)
+mod_municipio <- lm(MUNICIPIO ~ 1, data = data_sub1)
+```
+
+```{r}
 head(data_sub1)
+
 ```
 
 ```{r}
@@ -152,7 +170,6 @@ BIC_total <- -1/2 * (bic_numeric)
 BIC_total
 ```
 
-
 ```{r}
 # AIC para variables
 aic_numeric <- sum(
@@ -174,6 +191,210 @@ AIC_total <- -1/2 * (aic_numeric)
 AIC_total
 ```
 
+
+DAG 2
+
+```{r}
+data_sub2 <- base_final %>%
+  select(estrato.x = estrato.y,
+         CO, COV, PM_2_5, PM_010,h0402)
+
+colnames(data_sub2) <- c("ESTRATO", "CO", "COV", "PM25", "PM10", "ENFERMEDAD")
+
+all_nodes <- colnames(data_sub2)
+
+head(data_sub2)
+```
+
+```{r}
+dag_string2 <- paste0(
+  "[ESTRATO]",                           # isolated node
+  "[CO|ESTRATO][COV|ESTRATO][PM25|ESTRATO][PM10|ESTRATO]",
+  "[ENFERMEDAD|CO:COV:PM25:PM10]"       
+)
+
+dag2 <- model2network(dag_string2)
+```
+
+```{r}
+# Replace blank spaces with NA
+data_sub2[data_sub2 == " "] <- NA
+
+# Variables to treat as factors (if categorical)
+vars_factor2 <- c("ESTRATO", "ENFERMEDAD")
+
+data_sub2 <- data_sub2 %>%
+  mutate(across(all_of(vars_factor2), as.factor))
+
+# Example recodes (adjust if your coding is different)
+data_sub2 <- data_sub2 %>%
+  mutate(
+    ENFERMEDAD = ifelse(ENFERMEDAD == "1", 1, 0)  # convert to binary 0/1
+  )
+
+# Convert everything to numeric
+data_sub2[] <- lapply(data_sub2, function(x) as.numeric(as.character(x)))
+
+# Confirm structure
+str(data_sub2)
+```
+
+```{r}
+# Ajustar la red bayesiana al DAG2 y a los datos
+dag2_fit <- bn.fit(dag2, data = data_sub2)
+
+# Modelos nulos (solo intercepto) para cada variable de data_sub2
+mod_estrato    <- lm(ESTRATO ~ 1, data = data_sub2)
+mod_co         <- lm(CO ~ 1, data = data_sub2)
+mod_cov        <- lm(COV ~ 1, data = data_sub2)
+mod_pm25       <- lm(PM25 ~ 1, data = data_sub2)
+mod_pm10       <- lm(PM10 ~ 1, data = data_sub2)
+mod_enfermedad <- lm(ENFERMEDAD ~ 1, data = data_sub2)
+```
+
+```{r}
+# BIC total de la DAG2 (sumando modelos nulos)
+bic_numeric2 <- sum(
+  BIC(mod_estrato),
+  BIC(mod_co),
+  BIC(mod_cov),
+  BIC(mod_pm25),
+  BIC(mod_pm10),
+  BIC(mod_enfermedad)
+)
+
+BIC_total2 <- -1/2 * (bic_numeric2)
+BIC_total2
+
+```
+
+```{r}
+# AIC total de la DAG2 (sumando modelos nulos)
+aic_numeric2 <- sum(
+  AIC(mod_estrato),
+  AIC(mod_co),
+  AIC(mod_cov),
+  AIC(mod_pm25),
+  AIC(mod_pm10),
+  AIC(mod_enfermedad)
+)
+
+AIC_total2 <- -1/2 * (aic_numeric2)
+AIC_total2
+```
+
+DAG 3
+
+```{r}
+data_sub3 <- base_final %>%
+  select(entidad.y = entidad.x, 
+         estrato.x = estrato.y,
+         region.x = region.y,
+         CO, NOx, SO_2, COV, NH_3, PM_2_5, PM_010, h0402)
+
+colnames(data_sub3) <- c("ENTIDAD","ESTRATO","REGION", "CO","NOX","SO2","COV","NH3","PM25","PM10", "ENFERMEDAD")
+head(data_sub3)
+```
+
+```{r}
+dag_string3 <- paste0(
+  "[ENTIDAD][ESTRATO][REGION]",                           
+  "[CO|REGION][NOX|REGION][SO2|REGION][COV|REGION][NH3|REGION][PM25|REGION][PM10|REGION]",
+  "[ENFERMEDAD|CO:NOX:SO2:COV:NH3:PM25:PM10]"       
+)
+
+dag3 <- model2network(dag_string3)
+```
+
+```{r}
+# Replace blank spaces with NA
+data_sub3[data_sub3 == " "] <- NA
+
+# Variables to treat as factors (if categorical)
+vars_factor3 <- c("ENTIDAD", "ESTRATO", "REGION", "ENFERMEDAD")
+
+data_sub3 <- data_sub3 %>%
+  mutate(across(all_of(vars_factor3), as.factor))
+
+# Example recodes (adjust if your coding is different)
+# Assuming ENFERMEDAD is binary (1 = disease present, 0 = absent)
+data_sub3 <- data_sub3 %>%
+  mutate(
+    ENFERMEDAD = ifelse(ENFERMEDAD == "1", 1, 0)
+  )
+
+# Convert everything to numeric
+data_sub3[] <- lapply(data_sub3, function(x) as.numeric(as.character(x)))
+
+```
+
+```{r}
+# Ajustar la red bayesiana al DAG3 y datos
+dag3_fit <- bn.fit(dag3, data = data_sub3)
+
+# Modelos nulos (solo intercepto) para cada variable de data_sub3
+mod_estrato    <- lm(ESTRATO ~ 1, data = data_sub3)
+mod_co         <- lm(CO ~ 1, data = data_sub3)
+mod_nox        <- lm(NOX ~ 1, data = data_sub3)
+mod_so2        <- lm(SO2 ~ 1, data = data_sub3)
+mod_cov        <- lm(COV ~ 1, data = data_sub3)
+mod_nh3        <- lm(NH3 ~ 1, data = data_sub3)
+mod_pm25       <- lm(PM25 ~ 1, data = data_sub3)
+mod_pm10       <- lm(PM10 ~ 1, data = data_sub3)
+mod_enfermedad <- lm(ENFERMEDAD ~ 1, data = data_sub3)
+```
+
+```{r}
+# BIC total de la DAG3 (sumando modelos nulos)
+bic_numeric3 <- sum(
+  BIC(mod_estrato),
+  BIC(mod_co),
+  BIC(mod_nox),
+  BIC(mod_so2),
+  BIC(mod_cov),
+  BIC(mod_nh3),
+  BIC(mod_pm25),
+  BIC(mod_pm10),
+  BIC(mod_enfermedad)
+)
+
+BIC_total3 <- -1/2 * (bic_numeric3)
+BIC_total3
+```
+
+```{r}
+# AIC total de la DAG3 (sumando modelos nulos)
+aic_numeric3 <- sum(
+  AIC(mod_estrato),
+  AIC(mod_co),
+  AIC(mod_nox),
+  AIC(mod_so2),
+  AIC(mod_cov),
+  AIC(mod_nh3),
+  AIC(mod_pm25),
+  AIC(mod_pm10),
+  AIC(mod_enfermedad)
+)
+
+AIC_total3 <- -1/2 * (aic_numeric3)
+AIC_total3
+```
+
+Enfermedad corresponde al tipo de enfermedad que tenía la persona a la hora de ser atendido. Las opciones que los encuestados podían tomar eran las siguientes: ✏️ Reporten el BIC y el AIC para cada GBN.
+
+✏️ Investiguen y discutan cómo podrían incluir las variables categóricas a la red, por ejemplo, una variable de interés puede ser el sexo. Las variables categóricas utilizadas fueron el municipio y la entidad federativa, utilizando la conversión de strings a factors con el método as.factors.La as.factor()función en R se utiliza para convertir un objeto vectorial en un factor, lo cual en este caso hizo que la string se convirtiera en un factor. Esto es necesario ya que los factores en R son una estructura de datos que se utiliza para categorizar datos, los cuales sirven para almacenar datos que pueden dividirse en categorías discretas. (Educative, n.d.)
+
+✏️ Con la mejor estructura que han encontrado hasta el momento, intenten incluir el sexo de las personas.
+
+✏️ Con ayuda de las personas especialistas propongan al menos 3 queries que podrían resolver utilizando su red bayesiana y respóndalas usando su mejor modelo.
+
+✏️ Investiguen si incluir modelos no paramétricos les ayuda a mejorar el BIC y el AIC de su mejor modelo.
+
+##Referencias Educative. (n.d.). What is the as.factor() function in R? https://www.educative.io/answers/what-is-the-asfactor-function-in-r
+
+## dag 3
+
+## dag 4
 
 
 Enfermedad corresponde al tipo de enfermedad que tenía la persona a la hora de ser atendido. Las opciones que los encuestados podían tomar eran las siguientes: 
