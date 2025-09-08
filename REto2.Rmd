@@ -10,16 +10,14 @@ format:
      df-print: kable
 editor: visual
 ---
-
-
 ```{r}
 library(tidyverse)
 library(bnlearn)
 library(janitor)
 library(stringi)
 library(dplyr)
+library(mgcv)
 ```
-
 
 ```{r}
 base1 = read_delim("~/Desktop/semestre 5/semestre 5/repositorio/data/ensanut2022_muestras.csv", delim = ";")
@@ -28,34 +26,23 @@ base3 = read_csv("~/Desktop/semestre 5/semestre 5/repositorio/data/calidad_aire_
 ```
 
 ```{r}
-base1 = base1 |>
-            clean_names()
+base1 <- base1 %>% distinct(
+FOLIO_I, .keep_all = TRUE)
+base2 <- base2 %>% distinct(
+FOLIO_I, .keep_all = TRUE)
 
-base2 = base2 |>
-            clean_names()
-
-base3 = base3 |>
-            clean_names()
+base_completa_salud <- left_join(base1, base2, by = "FOLIO_I")
 ```
-
 
 ```{r}
-base1 <- base1 %>% distinct(folio_i, .keep_all = TRUE)
-base2 <- base2 %>% distinct(folio_i, .keep_all = TRUE)
-
-base_completa_salud <- left_join(base1, base2, by = "folio_i")
+head(base3)
 ```
-✏️ Una vez que cuenten con una selección de variables que les satisfaga, construyan el conjunto de datos que utilizarán. Para ello será necesario unir diferentes tablas para obtener la información necesaria. En el caso de los contaminantes del aire asumiremos lo siguiente.
 
-La información que tenemos es comparable con las condiciones a las que estuvieron sujetas las personas que participaron en la ENSANUT 2022, es decir, asumiremos que los valores de reporta la SEMARNAT para 2025 son buenas estimaciones para esos contaminantes en 2022.
-
-Necesitarán considerar, ya sea sólo en el Estado donde reside la persona entrevistada o su municipio, para cruzar esta información con la que contiene la tabla sobre calidad del aire y deberán elegir una sola fuente de información de esta última tabla para obtener los datos sobre los contaminantes para cada persona
-
-Hint: Consideren la fuente que tenga menos valores faltantes, por ejemplo, las fuentes fijas casi siempre contienen información para todos los municipios.
 ```{r}
-aire_fija <- base3 %>% filter(tipo_de_fuente == "Fuentes fijas")
-head(aire_fija)
+aire_fija <- base3 %>%
+  filter(Tipo_de_Fuente == "Fuentes fijas")
 ```
+
 
 ```{r}
 base_completa_salud <- base_completa_salud %>%
@@ -63,39 +50,31 @@ base_completa_salud <- base_completa_salud %>%
          desc_ent = str_to_upper(str_trim(desc_ent)))
 
 aire_fija <- aire_fija %>%
-  mutate(entidad_federativa = stri_trans_general(entidad_federativa, "Latin-ASCII"),
-         entidad_federativa = str_to_upper(str_trim(entidad_federativa)))
+  mutate(Entidad_federativa = stri_trans_general(Entidad_federativa, "Latin-ASCII"),
+Entidad_federativa= str_to_upper(str_trim(Entidad_federativa)))
 
-datos_completos <- left_join(
-  base_completa_salud, 
-  aire_fija, 
-  by = c("desc_ent" = "entidad_federativa"),
-  relationship = "many-to-many"
-)
-head(datos_completos)
+aire_fija_resum <- aire_fija %>%
+  group_by(Entidad_federativa) %>%
+  summarise(across(where(is.numeric), \(x) mean(x, na.rm = TRUE)))
+base_final <- left_join(base_completa_salud, aire_fija_resum,
+                        by = c("desc_ent" = "Entidad_federativa"))
 ```
 
-
-
-✏️ Ajusten una GBN para cada una de las DAG propuestas.
-
-##Dag Propuesta 1
 ```{r}
-data_sub1 <- datos_completos %>%
-  select(entidad = desc_ent, 
-         municipio.x = municipio.y,
+data_sub1 <- base_final %>%
+  select(entidad.y = entidad.x, 
+         municipio = municipio1,
          estrato.x = estrato.y,
-         co, n_ox, so_2, cov, nh_3, pm_2_5, pm_010,
-         h0401, valor_protcreac, valor_creat, valor_ac_urico,
-         valor_ferritina, valor_vit_d,
-         h1205, h1213a, h1207b, h0402)
+         CO, NOx, SO_2, COV, NH_3, PM_2_5, PM_010,
+         h0401, valor_PROTCREAC, valor_CREAT, valor_AC_URICO,
+         valor_FERRITINA, valor_VIT_D,
+         h1205, H1213A, h1207b, h0402)
 
 colnames(data_sub1) <- c("ENTIDAD","MUNICIPIO","ESTRATO","CO","NOX","SO2","COV","NH3","PM25","PM10",
                          "ENFERMO","PCR","CREAT","URIC","FERR","VITD",
                          "COVID","SECUELAS","ANIOCOVID","ENFERMEDAD")
-glimpse(data_sub1)
+head(data_sub1)
 ```
-Enfermedad corresponde al tipo de enfermedad que tenía la persona a la hora de ser atendido. Las opciones que los encuestados podían tomar eran las siguientes: 
 ```{r}
 # Definir DAG (estructura de la imagen)
 dag_string1 <- "[ENTIDAD][MUNICIPIO|ENTIDAD][CO|MUNICIPIO][NOX|MUNICIPIO][SO2|MUNICIPIO][COV|MUNICIPIO][NH3|MUNICIPIO][PM25|MUNICIPIO][PM10|MUNICIPIO][ESTRATO|MUNICIPIO][ENFERMO|CO:NOX:SO2:COV:NH3:PM25:PM10:ESTRATO][ENFERMEDAD|ENFERMO][PCR|ENFERMEDAD][CREAT|ENFERMEDAD][URIC|ENFERMEDAD][FERR|ENFERMEDAD][VITD|ENFERMEDAD][COVID|ESTRATO][SECUELAS|COVID][ANIOCOVID|COVID]"
@@ -103,8 +82,91 @@ dag_string1 <- "[ENTIDAD][MUNICIPIO|ENTIDAD][CO|MUNICIPIO][NOX|MUNICIPIO][SO2|MU
 dag1 <- model2network(dag_string1)
 
 graphviz.plot(dag1, shape = "ellipse")
-
 ```
+```{r}
+data_sub1[data_sub1 == " "] <- NA
+
+# Variables categóricas que deben ir como factor
+vars_factor <- c("ENTIDAD","MUNICIPIO","ENFERMO","PCR","CREAT","URIC","FERR",
+                 "VITD","COVID","SECUELAS","ANIOCOVID","ENFERMEDAD")
+
+data_sub1 <- data_sub1 %>%
+  mutate(across(all_of(vars_factor), as.factor))
+
+# Convertir variables categóricas binarias a numéricas
+data_sub1 <- data_sub1 %>%
+  mutate(
+    ENFERMO = ifelse(ENFERMO == 1, 1, 0),
+    COVID = ifelse(COVID == 98, 1, 0),   # Ojo: revisa qué significa "98"
+    SECUELAS = ifelse(SECUELAS == "1", 1, 0)
+  )
+
+# Pasar a numérico todo lo que se necesita
+data_sub1[] <- lapply(data_sub1, function(x) as.numeric(as.character(x)))
+head(data_sub1)
+```
+
+```{r}
+dag1_fit <- bn.fit(dag1, data = data_sub1)
+# Modelos nulos (solo intercepto) para cada contaminante
+mod_co    <- lm(CO ~ 1, data = data_sub1)
+mod_nox   <- lm(NOX ~ 1, data = data_sub1)
+mod_so2   <- lm(SO2 ~ 1, data = data_sub1)
+mod_cov   <- lm(COV ~ 1, data = data_sub1)
+mod_pm25  <- lm(PM25 ~ 1, data = data_sub1)
+mod_pm10  <- lm(PM10 ~ 1, data = data_sub1)
+mod_nh3   <- lm(NH3 ~ 1, data = data_sub1)
+mod_estrato   <- lm(ESTRATO ~ 1, data = data_sub1)
+```
+
+```{r}
+# BIC para variables numéricas
+bic_numeric <-  sum(
+  BIC(mod_co),
+  BIC(mod_nox),
+  BIC(mod_so2),
+  BIC(mod_cov),
+  BIC(mod_pm25),
+  BIC(mod_pm10),
+  BIC(mod_nh3),
+  BIC(mod_estrato)
+)
+
+# BIC total de la DAG
+BIC_total <- -1/2 * (bic_numeric)
+BIC_total
+```
+
+
+```{r}
+# AIC para variables numéricas
+aic_numeric <- sum(
+  AIC(mod_co),
+  AIC(mod_nox),
+  AIC(mod_so2),
+  AIC(mod_cov),
+  AIC(mod_pm25),
+  AIC(mod_pm10),
+  AIC(mod_nh3),
+  AIC(mod_estrato)
+)
+
+# AIC total de la DAG numérica
+AIC_total <- -1/2 * (aic_numeric)
+AIC_total
+```
+
+
+✏️ Una vez que cuenten con una selección de variables que les satisfaga, construyan el conjunto de datos que utilizarán. Para ello será necesario unir diferentes tablas para obtener la información necesaria. En el caso de los contaminantes del aire asumiremos lo siguiente.
+
+La información que tenemos es comparable con las condiciones a las que estuvieron sujetas las personas que participaron en la ENSANUT 2022, es decir, asumiremos que los valores de reporta la SEMARNAT para 2025 son buenas estimaciones para esos contaminantes en 2022.
+
+Necesitarán considerar, ya sea sólo en el Estado donde reside la persona entrevistada o su municipio, para cruzar esta información con la que contiene la tabla sobre calidad del aire y deberán elegir una sola fuente de información de esta última tabla para obtener los datos sobre los contaminantes para cada persona
+
+Hint: Consideren la fuente que tenga menos valores faltantes, por ejemplo, las fuentes fijas casi siempre contienen información para todos los municipios.
+✏️ Ajusten una GBN para cada una de las DAG propuestas.
+
+Enfermedad corresponde al tipo de enfermedad que tenía la persona a la hora de ser atendido. Las opciones que los encuestados podían tomar eran las siguientes: 
 ✏️ Reporten el BIC y el AIC para cada GBN.
 
 
