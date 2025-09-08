@@ -2915,7 +2915,9 @@ Warning in FUN(X[[i]], ...): NAs introduced by coercion</code></pre>
 <span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>mod_pm25  <span class="ot">&lt;-</span> <span class="fu">lm</span>(PM25 <span class="sc">~</span> <span class="dv">1</span>, <span class="at">data =</span> data_sub1)</span>
 <span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>mod_pm10  <span class="ot">&lt;-</span> <span class="fu">lm</span>(PM10 <span class="sc">~</span> <span class="dv">1</span>, <span class="at">data =</span> data_sub1)</span>
 <span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>mod_nh3   <span class="ot">&lt;-</span> <span class="fu">lm</span>(NH3 <span class="sc">~</span> <span class="dv">1</span>, <span class="at">data =</span> data_sub1)</span>
-<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>mod_estrato   <span class="ot">&lt;-</span> <span class="fu">lm</span>(ESTRATO <span class="sc">~</span> <span class="dv">1</span>, <span class="at">data =</span> data_sub1)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>mod_estrato   <span class="ot">&lt;-</span> <span class="fu">lm</span>(ESTRATO <span class="sc">~</span> <span class="dv">1</span>, <span class="at">data =</span> data_sub1)</span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>mod_entidad   <span class="ot">&lt;-</span> <span class="fu">lm</span>(ENTIDAD <span class="sc">~</span> <span class="dv">1</span>, <span class="at">data =</span> data_sub1)</span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>mod_municipio <span class="ot">&lt;-</span> <span class="fu">lm</span>(MUNICIPIO <span class="sc">~</span> <span class="dv">1</span>, <span class="at">data =</span> data_sub1)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># BIC para variables numéricas</span></span>
@@ -2927,18 +2929,20 @@ Warning in FUN(X[[i]], ...): NAs introduced by coercion</code></pre>
 <span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">BIC</span>(mod_pm25),</span>
 <span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">BIC</span>(mod_pm10),</span>
 <span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">BIC</span>(mod_nh3),</span>
-<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">BIC</span>(mod_estrato)</span>
-<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a><span class="co"># BIC total de la DAG</span></span>
-<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>BIC_total <span class="ot">&lt;-</span> <span class="sc">-</span><span class="dv">1</span><span class="sc">/</span><span class="dv">2</span> <span class="sc">*</span> (bic_numeric)</span>
-<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>BIC_total</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">BIC</span>(mod_estrato),</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">BIC</span>(mod_entidad),</span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">BIC</span>(mod_municipio)</span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a><span class="co"># BIC total de la DAG</span></span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>BIC_total <span class="ot">&lt;-</span> <span class="sc">-</span><span class="dv">1</span><span class="sc">/</span><span class="dv">2</span> <span class="sc">*</span> (bic_numeric)</span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a>BIC_total</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>[1] -328940.2</code></pre>
+<pre><code>[1] -392087.8</code></pre>
 </div>
 </div>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># AIC para variables numéricas</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># AIC para variables</span></span>
 <span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>aic_numeric <span class="ot">&lt;-</span> <span class="fu">sum</span>(</span>
 <span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">AIC</span>(mod_co),</span>
 <span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">AIC</span>(mod_nox),</span>
@@ -2947,14 +2951,17 @@ Warning in FUN(X[[i]], ...): NAs introduced by coercion</code></pre>
 <span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">AIC</span>(mod_pm25),</span>
 <span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">AIC</span>(mod_pm10),</span>
 <span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">AIC</span>(mod_nh3),</span>
-<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">AIC</span>(mod_estrato)</span>
-<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a><span class="co"># AIC total de la DAG numérica</span></span>
-<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>AIC_total <span class="ot">&lt;-</span> <span class="sc">-</span><span class="dv">1</span><span class="sc">/</span><span class="dv">2</span> <span class="sc">*</span> (aic_numeric)</span>
-<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>AIC_total</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">AIC</span>(mod_estrato),</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">AIC</span>(mod_estrato),</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">AIC</span>(mod_entidad),</span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">AIC</span>(mod_municipio)</span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a><span class="co"># AIC total de la DAG </span></span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a>AIC_total <span class="ot">&lt;-</span> <span class="sc">-</span><span class="dv">1</span><span class="sc">/</span><span class="dv">2</span> <span class="sc">*</span> (aic_numeric)</span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a>AIC_total</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>[1] -328886</code></pre>
+<pre><code>[1] -400519.7</code></pre>
 </div>
 </div>
 <p>Enfermedad corresponde al tipo de enfermedad que tenía la persona a la hora de ser atendido. Las opciones que los encuestados podían tomar eran las siguientes: ✏️ Reporten el BIC y el AIC para cada GBN.</p>

@@ -84,6 +84,7 @@ colnames(data_sub1) <- c("ENTIDAD","MUNICIPIO","ESTRATO","CO","NOX","SO2","COV",
                          "COVID","SECUELAS","ANIOCOVID","ENFERMEDAD")
 head(data_sub1)
 ```
+
 ```{r}
 # Definir DAG (estructura de la imagen)
 dag_string1 <- "[ENTIDAD][MUNICIPIO|ENTIDAD][CO|MUNICIPIO][NOX|MUNICIPIO][SO2|MUNICIPIO][COV|MUNICIPIO][NH3|MUNICIPIO][PM25|MUNICIPIO][PM10|MUNICIPIO][ESTRATO|MUNICIPIO][ENFERMO|CO:NOX:SO2:COV:NH3:PM25:PM10:ESTRATO][ENFERMEDAD|ENFERMO][PCR|ENFERMEDAD][CREAT|ENFERMEDAD][URIC|ENFERMEDAD][FERR|ENFERMEDAD][VITD|ENFERMEDAD][COVID|ESTRATO][SECUELAS|COVID][ANIOCOVID|COVID]"
@@ -92,6 +93,7 @@ dag1 <- model2network(dag_string1)
 
 graphviz.plot(dag1, shape = "ellipse")
 ```
+
 ```{r}
 data_sub1[data_sub1 == " "] <- NA
 
@@ -126,6 +128,8 @@ mod_pm25  <- lm(PM25 ~ 1, data = data_sub1)
 mod_pm10  <- lm(PM10 ~ 1, data = data_sub1)
 mod_nh3   <- lm(NH3 ~ 1, data = data_sub1)
 mod_estrato   <- lm(ESTRATO ~ 1, data = data_sub1)
+mod_entidad   <- lm(ENTIDAD ~ 1, data = data_sub1)
+mod_municipio <- lm(MUNICIPIO ~ 1, data = data_sub1)
 ```
 
 ```{r}
@@ -138,7 +142,9 @@ bic_numeric <-  sum(
   BIC(mod_pm25),
   BIC(mod_pm10),
   BIC(mod_nh3),
-  BIC(mod_estrato)
+  BIC(mod_estrato),
+  BIC(mod_entidad),
+  BIC(mod_municipio)
 )
 
 # BIC total de la DAG
@@ -148,7 +154,7 @@ BIC_total
 
 
 ```{r}
-# AIC para variables numéricas
+# AIC para variables
 aic_numeric <- sum(
   AIC(mod_co),
   AIC(mod_nox),
@@ -157,13 +163,18 @@ aic_numeric <- sum(
   AIC(mod_pm25),
   AIC(mod_pm10),
   AIC(mod_nh3),
-  AIC(mod_estrato)
+  AIC(mod_estrato),
+  AIC(mod_estrato),
+  AIC(mod_entidad),
+  AIC(mod_municipio)
 )
 
-# AIC total de la DAG numérica
+# AIC total de la DAG 
 AIC_total <- -1/2 * (aic_numeric)
 AIC_total
 ```
+
+
 
 Enfermedad corresponde al tipo de enfermedad que tenía la persona a la hora de ser atendido. Las opciones que los encuestados podían tomar eran las siguientes: 
 ✏️ Reporten el BIC y el AIC para cada GBN.
