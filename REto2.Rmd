@@ -16,6 +16,7 @@ editor: visual
 library(tidyverse)
 library(bnlearn)
 library(janitor)
+library(stringi)
 library(dplyr)
 ```
 
@@ -37,17 +38,12 @@ base3 = base3 |>
             clean_names()
 ```
 
-```{r}
-glimpse(base1)
-```
-```{r}
-glimpse(base3)
-```
-
 
 ```{r}
+base1 <- base1 %>% distinct(folio_i, .keep_all = TRUE)
+base2 <- base2 %>% distinct(folio_i, .keep_all = TRUE)
+
 base_completa_salud <- left_join(base1, base2, by = "folio_i")
-head(base_completa_salud)
 ```
 ✏️ Una vez que cuenten con una selección de variables que les satisfaga, construyan el conjunto de datos que utilizarán. Para ello será necesario unir diferentes tablas para obtener la información necesaria. En el caso de los contaminantes del aire asumiremos lo siguiente.
 
@@ -60,30 +56,67 @@ Hint: Consideren la fuente que tenga menos valores faltantes, por ejemplo, las f
 aire_fija <- base3 %>% filter(tipo_de_fuente == "Fuentes fijas")
 head(aire_fija)
 ```
-```{r}
-head(base_completa_salud)
-
-```
 
 ```{r}
 base_completa_salud <- base_completa_salud %>%
-  mutate(nombre_estado = str_remove(desc_ent, "^[0-9]+\\s"))  # elimina el código y el espacio inicial
+  mutate(desc_ent = stri_trans_general(str_remove(desc_ent, "^[0-9]+\\s"), "Latin-ASCII"),
+         desc_ent = str_to_upper(str_trim(desc_ent)))
 
-datos_completos <- left_join(base_completa_salud, aire_fija, by = c("desc_ent" = "entidad_federativa"))
+aire_fija <- aire_fija %>%
+  mutate(entidad_federativa = stri_trans_general(entidad_federativa, "Latin-ASCII"),
+         entidad_federativa = str_to_upper(str_trim(entidad_federativa)))
+
+datos_completos <- left_join(
+  base_completa_salud, 
+  aire_fija, 
+  by = c("desc_ent" = "entidad_federativa"),
+  relationship = "many-to-many"
+)
 head(datos_completos)
 ```
-```{r}
-glimpse(datos_completos)
-```
+
+
 
 ✏️ Ajusten una GBN para cada una de las DAG propuestas.
 
+##Dag Propuesta 1
+```{r}
+data_sub1 <- datos_completos %>%
+  select(entidad = desc_ent, 
+         municipio.x = municipio.y,
+         estrato.x = estrato.y,
+         co, n_ox, so_2, cov, nh_3, pm_2_5, pm_010,
+         h0401, valor_protcreac, valor_creat, valor_ac_urico,
+         valor_ferritina, valor_vit_d,
+         h1205, h1213a, h1207b, h0402)
+
+colnames(data_sub1) <- c("ENTIDAD","MUNICIPIO","ESTRATO","CO","NOX","SO2","COV","NH3","PM25","PM10",
+                         "ENFERMO","PCR","CREAT","URIC","FERR","VITD",
+                         "COVID","SECUELAS","ANIOCOVID","ENFERMEDAD")
+glimpse(data_sub1)
+```
+Enfermedad corresponde al tipo de enfermedad que tenía la persona a la hora de ser atendido. Las opciones que los encuestados podían tomar eran las siguientes: 
+```{r}
+# Definir DAG (estructura de la imagen)
+dag_string1 <- "[ENTIDAD][MUNICIPIO|ENTIDAD][CO|MUNICIPIO][NOX|MUNICIPIO][SO2|MUNICIPIO][COV|MUNICIPIO][NH3|MUNICIPIO][PM25|MUNICIPIO][PM10|MUNICIPIO][ESTRATO|MUNICIPIO][ENFERMO|CO:NOX:SO2:COV:NH3:PM25:PM10:ESTRATO][ENFERMEDAD|ENFERMO][PCR|ENFERMEDAD][CREAT|ENFERMEDAD][URIC|ENFERMEDAD][FERR|ENFERMEDAD][VITD|ENFERMEDAD][COVID|ESTRATO][SECUELAS|COVID][ANIOCOVID|COVID]"
+
+dag1 <- model2network(dag_string1)
+
+graphviz.plot(dag1, shape = "ellipse")
+
+```
 ✏️ Reporten el BIC y el AIC para cada GBN.
 
+
 ✏️ Investiguen y discutan cómo podrían incluir las variables categóricas a la red, por ejemplo, una variable de interés puede ser el sexo.
+Las variables categóricas utilizadas fueron el municipio y la entidad federativa, utilizando la conversión de strings a factors con el método as.factors.La as.factor()función en R se utiliza para convertir un objeto vectorial en un factor, lo cual en este caso hizo que la string se convirtiera en un factor. Esto es necesario ya que los factores en R  son una estructura de datos que se utiliza para categorizar datos, los cuales sirven para almacenar datos que pueden dividirse en categorías discretas. (Educative, n.d.)
 
 ✏️ Con la mejor estructura que han encontrado hasta el momento, intenten incluir el sexo de las personas.
 
 ✏️ Con ayuda de las personas especialistas propongan al menos 3 queries que podrían resolver utilizando su red bayesiana y respóndalas usando su mejor modelo.
 
 ✏️ Investiguen si incluir modelos no paramétricos les ayuda a mejorar el BIC y el AIC de su mejor modelo.
+
+
+##Referencias
+Educative. (n.d.). What is the as.factor() function in R? https://www.educative.io/answers/what-is-the-asfactor-function-in-r
