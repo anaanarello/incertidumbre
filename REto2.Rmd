@@ -59,7 +59,16 @@ aire_fija_resum <- aire_fija %>%
 base_final <- left_join(base_completa_salud, aire_fija_resum,
                         by = c("desc_ent" = "Entidad_federativa"))
 ```
+✏️ Una vez que cuenten con una selección de variables que les satisfaga, construyan el conjunto de datos que utilizarán. Para ello será necesario unir diferentes tablas para obtener la información necesaria. En el caso de los contaminantes del aire asumiremos lo siguiente.
 
+La información que tenemos es comparable con las condiciones a las que estuvieron sujetas las personas que participaron en la ENSANUT 2022, es decir, asumiremos que los valores de reporta la SEMARNAT para 2025 son buenas estimaciones para esos contaminantes en 2022.
+
+Necesitarán considerar, ya sea sólo en el Estado donde reside la persona entrevistada o su municipio, para cruzar esta información con la que contiene la tabla sobre calidad del aire y deberán elegir una sola fuente de información de esta última tabla para obtener los datos sobre los contaminantes para cada persona
+
+Hint: Consideren la fuente que tenga menos valores faltantes, por ejemplo, las fuentes fijas casi siempre contienen información para todos los municipios.
+✏️ Ajusten una GBN para cada una de las DAG propuestas.
+
+## DAG 1
 ```{r}
 data_sub1 <- base_final %>%
   select(entidad.y = entidad.x, 
@@ -155,16 +164,6 @@ aic_numeric <- sum(
 AIC_total <- -1/2 * (aic_numeric)
 AIC_total
 ```
-
-
-✏️ Una vez que cuenten con una selección de variables que les satisfaga, construyan el conjunto de datos que utilizarán. Para ello será necesario unir diferentes tablas para obtener la información necesaria. En el caso de los contaminantes del aire asumiremos lo siguiente.
-
-La información que tenemos es comparable con las condiciones a las que estuvieron sujetas las personas que participaron en la ENSANUT 2022, es decir, asumiremos que los valores de reporta la SEMARNAT para 2025 son buenas estimaciones para esos contaminantes en 2022.
-
-Necesitarán considerar, ya sea sólo en el Estado donde reside la persona entrevistada o su municipio, para cruzar esta información con la que contiene la tabla sobre calidad del aire y deberán elegir una sola fuente de información de esta última tabla para obtener los datos sobre los contaminantes para cada persona
-
-Hint: Consideren la fuente que tenga menos valores faltantes, por ejemplo, las fuentes fijas casi siempre contienen información para todos los municipios.
-✏️ Ajusten una GBN para cada una de las DAG propuestas.
 
 Enfermedad corresponde al tipo de enfermedad que tenía la persona a la hora de ser atendido. Las opciones que los encuestados podían tomar eran las siguientes: 
 ✏️ Reporten el BIC y el AIC para cada GBN.

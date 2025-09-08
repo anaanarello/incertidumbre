@@ -2203,8 +2203,14 @@ vertical-align: -.125em;
 <body class="quarto-light">
 
 <div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
-<div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
-  
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#dag-1" id="toc-dag-1" class="nav-link active" data-scroll-target="#dag-1">DAG 1</a></li>
+  </ul>
+</nav>
 </div>
 <main class="content" id="quarto-document-content">
 
@@ -2459,6 +2465,12 @@ dbl (7): SO_2, CO, NOx, COV, PM_010, PM_2_5, NH_3
 <span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>base_final <span class="ot">&lt;-</span> <span class="fu">left_join</span>(base_completa_salud, aire_fija_resum,</span>
 <span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>                        <span class="at">by =</span> <span class="fu">c</span>(<span class="st">&quot;desc_ent&quot;</span> <span class="ot">=</span> <span class="st">&quot;Entidad_federativa&quot;</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
+<p>✏️ Una vez que cuenten con una selección de variables que les satisfaga, construyan el conjunto de datos que utilizarán. Para ello será necesario unir diferentes tablas para obtener la información necesaria. En el caso de los contaminantes del aire asumiremos lo siguiente.</p>
+<p>La información que tenemos es comparable con las condiciones a las que estuvieron sujetas las personas que participaron en la ENSANUT 2022, es decir, asumiremos que los valores de reporta la SEMARNAT para 2025 son buenas estimaciones para esos contaminantes en 2022.</p>
+<p>Necesitarán considerar, ya sea sólo en el Estado donde reside la persona entrevistada o su municipio, para cruzar esta información con la que contiene la tabla sobre calidad del aire y deberán elegir una sola fuente de información de esta última tabla para obtener los datos sobre los contaminantes para cada persona</p>
+<p>Hint: Consideren la fuente que tenga menos valores faltantes, por ejemplo, las fuentes fijas casi siempre contienen información para todos los municipios. ✏️ Ajusten una GBN para cada una de las DAG propuestas.</p>
+<section id="dag-1" class="level2">
+<h2 class="anchored" data-anchor-id="dag-1">DAG 1</h2>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>data_sub1 <span class="ot">&lt;-</span> base_final <span class="sc">%&gt;%</span></span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="at">entidad.y =</span> entidad.x, </span>
@@ -2945,16 +2957,13 @@ Warning in FUN(X[[i]], ...): NAs introduced by coercion</code></pre>
 <pre><code>[1] -328886</code></pre>
 </div>
 </div>
-<p>✏️ Una vez que cuenten con una selección de variables que les satisfaga, construyan el conjunto de datos que utilizarán. Para ello será necesario unir diferentes tablas para obtener la información necesaria. En el caso de los contaminantes del aire asumiremos lo siguiente.</p>
-<p>La información que tenemos es comparable con las condiciones a las que estuvieron sujetas las personas que participaron en la ENSANUT 2022, es decir, asumiremos que los valores de reporta la SEMARNAT para 2025 son buenas estimaciones para esos contaminantes en 2022.</p>
-<p>Necesitarán considerar, ya sea sólo en el Estado donde reside la persona entrevistada o su municipio, para cruzar esta información con la que contiene la tabla sobre calidad del aire y deberán elegir una sola fuente de información de esta última tabla para obtener los datos sobre los contaminantes para cada persona</p>
-<p>Hint: Consideren la fuente que tenga menos valores faltantes, por ejemplo, las fuentes fijas casi siempre contienen información para todos los municipios. ✏️ Ajusten una GBN para cada una de las DAG propuestas.</p>
 <p>Enfermedad corresponde al tipo de enfermedad que tenía la persona a la hora de ser atendido. Las opciones que los encuestados podían tomar eran las siguientes: ✏️ Reporten el BIC y el AIC para cada GBN.</p>
 <p>✏️ Investiguen y discutan cómo podrían incluir las variables categóricas a la red, por ejemplo, una variable de interés puede ser el sexo. Las variables categóricas utilizadas fueron el municipio y la entidad federativa, utilizando la conversión de strings a factors con el método as.factors.La as.factor()función en R se utiliza para convertir un objeto vectorial en un factor, lo cual en este caso hizo que la string se convirtiera en un factor. Esto es necesario ya que los factores en R son una estructura de datos que se utiliza para categorizar datos, los cuales sirven para almacenar datos que pueden dividirse en categorías discretas. (Educative, n.d.)</p>
 <p>✏️ Con la mejor estructura que han encontrado hasta el momento, intenten incluir el sexo de las personas.</p>
 <p>✏️ Con ayuda de las personas especialistas propongan al menos 3 queries que podrían resolver utilizando su red bayesiana y respóndalas usando su mejor modelo.</p>
 <p>✏️ Investiguen si incluir modelos no paramétricos les ayuda a mejorar el BIC y el AIC de su mejor modelo.</p>
 <p>##Referencias Educative. (n.d.). What is the as.factor() function in R? https://www.educative.io/answers/what-is-the-asfactor-function-in-r</p>
+</section>
 
 </main>
 <!-- /main column -->
