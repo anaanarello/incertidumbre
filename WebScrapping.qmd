@@ -1,0 +1,498 @@
+---
+title: "Artículo 3"
+author: "Ana Ana Rello de Obeso, Getzemani Kinari Ríos Tavares, David Esteban Flores Medina"
+format:
+   html:
+     toc: true
+     html-math-method: katex
+     embed-resources: true
+     self-contained-math: true
+     df-print: kable
+editor: visual
+---
+
+## WebScrapping
+
+```{r}
+library(rvest)
+library(stringr)
+library(dplyr)
+
+# función para analizar una historia
+parse_story <- function(url) {
+  if (is.na(url)) return(NULL)
+  cat("Analizando:", url, "\n")
+  
+  page <- try(read_html(url), silent = TRUE)
+  if (inherits(page, "try-error")) {
+    warning("Falló al leer: ", url)
+    return(NULL)
+  }
+  
+  # título
+  title <- page %>% html_node("h1") %>% html_text(trim = TRUE)
+  
+  # cuerpo
+  body <- page %>%
+    html_nodes("#story p") %>%
+    html_text(trim = TRUE) %>%
+    paste(collapse = "\n\n")
+  
+  # categoría
+  category <- page %>%
+    html_nodes(xpath = "//a[contains(@href,'ghost-stories-categories.php')]") %>%
+    html_text(trim = TRUE) %>%
+    .[1]
+  
+  if (is.na(title) | is.na(body)) return(NULL)
+  
+  data.frame(
+    title = title,
+    story = body,
+    category = ifelse(length(category) > 0, category, NA),
+    stringsAsFactors = FALSE
+  )
+}
+
+# rango de historias a recorrer
+start_id <- 1
+end_id <- 2000   # puedes ampliar a 21600
+
+stories_list <- list()
+
+for (i in start_id:end_id) {
+  url <- paste0("https://www.yourghoststories.com/real-ghost-story.php?story=", i)
+  story <- parse_story(url)
+  if (!is.null(story)) {
+    stories_list[[length(stories_list) + 1]] <- story
+  }
+  gc()
+  Sys.sleep(0.5) # cortesía al servidor
+}
+
+# juntar todas las historias
+stories_df <- do.call(rbind, stories_list)
+rownames(stories_df) <- NULL
+```
+
+```{r}
+cat("Total de historias guardadas:", nrow(stories_df), "\n")
+```
+
+```{r}
+closeAllConnections()
+gc()
+
+# imprimir un resumen
+head(stories_df)
+glimpse(stories_df)
+```
+
+```{r}
+library(robotstxt)
+library(rvest)
+library(stringr)
+library(tidytext)
+library(tidyr)
+library(knitr)
+library(dplyr)
+library(Matrix)
+
+```
+## Tokenizar Palabras
+
+```{r}
+# tokenize words from your stories
+stories_words <- stories_df %>%
+  unnest_tokens(word, story)   # split story column into words
+
+# count top 10 words per story title
+top_words <- stories_words %>%
+  count(title, word, sort = TRUE) %>%
+  group_by(title) %>%
+  slice_head(n = 10) %>%
+  pivot_wider(
+    names_from = title,
+    values_from = n,
+    values_fn = as.character,   # so counts display nicely
+    values_fill = "Not in top 10"
+  )
+
+# show as a table
+kable(top_words)
+```
+
+```{r}
+# top 10 palabras de cada historia
+top_words <- stories_words %>%
+  count(title, word, sort = TRUE) %>%
+  group_by(title) %>%
+  slice_head(n = 10)
+
+kable(top_words)
+```
+
+```{r}
+# hacer titulos unicos
+stories_df <- stories_df %>%
+  mutate(title = make.unique(title, sep = " "))
+```
+
+## Frecuencia de palabras
+```{r}
+# 2. Count word frequencies per story
+word_counts <- stories_words %>%
+  count(title, word, sort = TRUE)
+word_counts
+```
+
+```{r}
+library(janitor)  # install if not already installed
+dtm_wide <- word_counts %>%
+  pivot_wider(
+    names_from = word,
+    values_from = n,
+    values_fill = list(n = 0),
+    values_fn = list(n = sum),
+    names_repair = "unique"
+  ) %>%
+  janitor::clean_names()   # ensure all column names are unique/valid
+```
+## Sparse Matrix 
+
+```{r}
+# 4. Convert to sparse matrix
+# First column is the story title, keep it separately
+story_titles <- dtm_wide$title
+dtm_matrix <- as.matrix(dtm_wide[,-1])
+dtm_sparse <- Matrix(dtm_matrix, sparse = TRUE)
+
+# check dimensions
+dim(dtm_sparse)
+
+# Example: see first rows
+dtm_sparse[1:5, 1:10]
+```
+
+## Stop Words 
+```{r}
+library(tidytext)
+library(dplyr)
+
+# Tokenizar y quitar stop words
+stories_clean <- stories_df %>%
+  unnest_tokens(word, story) %>%         # dividir el texto en palabras
+  anti_join(stop_words, by = "word")     # eliminar stopwords en inglés
+
+# Revisar las primeras filas
+head(stories_clean)
+```
+```{r}
+library(ggplot2)
+library(tidytext)
+library(dplyr)
+
+# tomar solo las 10 primeras historias
+stories_10 <- stories_df %>%
+  slice_head(n = 5)
+
+# procesar top 10 palabras por cada historia
+top_words <- stories_10 %>%
+  unnest_tokens(word, story) %>%
+  anti_join(stop_words, by = "word") %>%
+  count(title, word, sort = TRUE) %>%
+  group_by(title) %>%
+  slice_head(n = 10) %>%
+  ungroup()
+
+# gráfico
+ggplot(top_words, aes(y = reorder_within(word, n, title),
+                      x = n, fill = title)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~title, scales = "free") +
+  scale_y_reordered() +
+  labs(
+    y = NULL,
+    x = "Frecuencia de palabra",
+    title = "Top 10 palabras por historia (primeras 5 historias)"
+  )
+
+```
+
+```{r}
+colnames(dtm_wide)[1:5]
+```
+
+
+```{r}
+library(caret)
+library(e1071)
+
+set.seed(1234)  # reproducibilidad
+
+# Agregar category como factor y combinar con dtm_wide
+# unir category usando el nombre correcto
+dtm_model <- dtm_wide %>%
+  left_join(stories_clean %>% select(title, category),
+            by = c("title_1" = "title"))
+
+dtm_model$category <- as.factor(dtm_model$category)
+
+# Dividir en training y testing (70% / 30%)
+trainIndex <- createDataPartition(dtm_model$category, p = 0.7, list = FALSE)
+trainData <- dtm_model[trainIndex, ]
+testData  <- dtm_model[-trainIndex, ]
+```
+## naiveBayes()
+
+```{r}
+library(MLmetrics)
+
+NB_cl1 = naiveBayes(category ~ ., data = trainData)
+y_pred1 = predict(NB_cl1, newdata = testData)
+cm1 = table(testData$category, y_pred1)
+cm1
+y_true1 <- factor(testData$category, levels = levels(y_pred1))
+
+# matriz de confusión
+cm1 <- confusionMatrix(y_pred1, y_true1)
+cm1$table  # muestra la matriz de confusión
+
+# Accuracy global
+accuracy <- cm1$overall["Accuracy"]
+accuracy
+
+# Precision, Recall y F1 por clase
+precision <- cm1$byClass[,"Pos Pred Value"]
+recall    <- cm1$byClass[,"Sensitivity"]
+f1_score  <- 2 * (precision * recall) / (precision + recall)
+
+# resultados combinados
+metrics <- data.frame(
+  Class = rownames(cm1$byClass),
+  Precision = precision,
+  Recall = recall,
+  F1_Score = f1_score
+)
+metrics
+
+```
+
+### Análisis de resultados 
+
+Los problemas principales identificados en el modelo son varios. Primero, existe un desbalance importante entre las clases. Algunas categorías cuentan con muchas historias, mientras que otras tienen muy pocas. Esto provoca que Naïve Bayes prediga casi siempre la clase mayoritaria y devuelva cero para las demás, lo que explica por qué muchas métricas aparecen como NA o cero en la evaluación.
+
+Otro problema es la gran cantidad de columnas o predictores en la matriz DTM. Esta matriz contiene miles de palabras, muchas de las cuales aparecen únicamente en una historia. Esta alta dispersión genera sparsity extrema, dificultando que Naïve Bayes detecte coincidencias significativas entre palabras y categorías en el conjunto de prueba.
+
+También se observa insuficiencia de datos para algunas clases. Si una categoría tiene menos ejemplos de los necesarios para la validación, la matriz de confusión refleja ceros y valores NaN, lo que indica que el modelo no puede generalizar correctamente para esas clases.
+
+Finalmente, aunque se eliminaron los stopwords, las palabras raras o únicas no aportan información útil. Muchas palabras aparecen de manera aislada o poco frecuente, y Naïve Bayes no logra aprender patrones generales a partir de ellas, limitando la precisión del modelo.
+
+Por ello nos hace sentido tener los resultados obtenidos con los accuracy, precision y F1-Score. 
+
+## naive_bayes()
+```{r}
+library(naivebayes)
+```
+
+```{r}
+nb_model2 <- naive_bayes(category ~ ., data = trainData %>% select(-title_1),
+                        laplace = 1)  # suavizado Laplace
+
+# predecir en test
+preds2 <- predict(nb_model2, testData %>% select(-title_1))
+
+# matriz de confusión
+confusionMatrix(preds2, testData$category)
+cm2 = table(testData$category, y_pred1)
+cm2
+y_true2 <- factor(testData$category, levels = levels(preds2))
+
+# matriz de confusión
+cm2 <- confusionMatrix(preds2, y_true2)
+cm2$table  # muestra la matriz de confusión
+
+# Accuracy global
+accuracy2 <- cm2$overall["Accuracy"]
+accuracy2
+
+# Precision, Recall y F1 por clase
+precision2 <- cm2$byClass[,"Pos Pred Value"]
+recall2    <- cm2$byClass[,"Sensitivity"]
+f1_score2  <- 2 * (precision2 * recall2) / (precision2 + recall2)
+
+# resultados combinados
+metrics2 <- data.frame(
+  Class = rownames(cm2$byClass),
+  Precision = precision2,
+  Recall = recall2,
+  F1_Score = f1_score2
+)
+metrics2
+
+```
+
+## Dicotomizar la categoria
+```{r}
+# recodificar la columna 'category' a dos clases
+stories_clean <- stories_clean %>%
+  mutate(category_bin = case_when(
+    category == "Haunted Places" ~ "Haunted Places",
+    TRUE ~ "Other"
+  ))
+
+# revisar resultados
+table(stories_clean$category_bin)
+```
+
+```{r}
+library(dplyr)
+library(caret)
+
+set.seed(1234)  # reproducibilidad
+
+# Unir category_bin al DTM
+dtm_model2 <- dtm_wide %>%
+  left_join(stories_clean %>% select(title, category_bin),
+            by = c("title_1" = "title"))
+
+# Convertir category_bin a factor
+dtm_model2$category_bin <- as.factor(dtm_model2$category_bin)
+
+# Dividir en training y testing (70% / 30%)
+trainIndex2 <- createDataPartition(dtm_model2$category_bin, p = 0.7, list = FALSE)
+trainData2 <- dtm_model2[trainIndex2, ]
+testData2  <- dtm_model2[-trainIndex2, ]
+```
+
+
+```{r}
+nb_model3 <- naive_bayes(category_bin ~ ., data = trainData2 %>% select(-title_1),
+                        laplace = 1)  # suavizado Laplace
+
+# predecir en test
+preds3 <- predict(nb_model3, testData2 %>% select(-title_1))
+
+# matriz de confusión
+confusionMatrix(preds3, testData2$category_bin)
+cm3 = table(testData2$category_bin, preds3)
+cm3
+y_true3 <- factor(testData2$category_bin, levels = levels(preds3))
+
+# suponer que cm3 es el confusionMatrix generado
+cm3 <- confusionMatrix(preds3, testData2$category_bin)
+
+# extraer métricas para clasificación binaria
+precision3 <- cm3$byClass["Pos Pred Value"]
+recall3    <- cm3$byClass["Sensitivity"]
+
+# calcular F1
+f1_score3 <- 2 * (precision3 * recall3) / (precision3 + recall3)
+
+# resultados combinados
+metrics3 <- data.frame(
+  Class = names(precision3),
+  Precision = precision3,
+  Recall = recall3,
+  F1_Score = f1_score3
+)
+
+metrics3
+
+```
+## Distribución de Poisson
+```{r}
+library(naivebayes)
+library(caret)
+
+set.seed(1234)
+
+# Ajustar Naïve Bayes usando Poisson para conteos
+NB_poisson <- naive_bayes(category_bin ~ ., data = trainData2, usepoisson = TRUE)
+
+# Predecir sobre el conjunto de prueba
+preds_poisson <- predict(NB_poisson, testData2 %>% select(-title_1))
+
+# Matriz de confusión
+cm_poisson <- confusionMatrix(preds_poisson, testData2$category_bin)
+cm_poisson
+
+# Extraer métricas básicas
+precision <- cm_poisson$byClass["Pos Pred Value"]
+recall    <- cm_poisson$byClass["Sensitivity"]
+f1_score  <- 2 * (precision * recall) / (precision + recall)
+
+metrics <- data.frame(
+  Class = names(precision),
+  Precision = precision,
+  Recall = recall,
+  F1_Score = f1_score
+)
+metrics
+
+```
+
+```{r}
+library(naivebayes)
+library(caret)
+
+# Entrenar con Laplace smoothing (α = 1 por defecto)
+NB_laplace <- naive_bayes(category_bin ~ ., 
+                          data = trainData2 %>% select(-title_1),
+                          laplace = 1, 
+                          usepoisson = TRUE)
+
+# Predecir sobre el conjunto de prueba
+preds_laplace <- predict(NB_laplace, 
+                         newdata = testData2 %>% select(-title_1, -category_bin))
+
+# Matriz de confusión
+cm_laplace <- confusionMatrix(preds_laplace, testData2$category_bin)
+cm_laplace
+```
+
+```{r}
+library(naivebayes)
+library(caret)
+
+# Definir grid de valores para Laplace smoothing
+laplace_grid <- expand.grid(laplace = c(0, 0.5, 1, 2, 5), 
+                            usekernel = FALSE, 
+                            adjust = 1)
+
+# Configuración de validación cruzada (5-fold CV)
+ctrl <- trainControl(method = "cv", number = 5)
+
+# Entrenar con caret usando validación cruzada
+set.seed(123)
+NB_cv <- train(category_bin ~ ., 
+               data = trainData2 %>% select(-title_1),
+               method = "naive_bayes",
+               trControl = ctrl,
+               tuneGrid = laplace_grid,
+               metric = "Accuracy")
+
+# Mejor modelo
+NB_cv$bestTune
+```
+
+```{r}
+# Entrenar modelo final con el mejor valor de laplace
+best_laplace <- NB_cv$bestTune$laplace
+
+NB_final <- naive_bayes(
+  category_bin ~ .,
+  data = trainData2 %>% select(-title_1),
+  laplace = best_laplace,
+  usekernel = FALSE
+)
+
+# Predecir sobre test set
+preds_final <- predict(NB_final, newdata = testData2)
+
+# Matriz de confusión y métricas
+cm_final <- confusionMatrix(preds_final, testData2$category_bin)
+cm_final
+```
+
+
