@@ -1,0 +1,196 @@
+---
+title: "WEBS2"
+format: html
+editor: visual
+---
+
+```{r}
+# Cargar librerías necesarias
+library(rvest)
+library(stringr)
+library(dplyr)
+library(httr)
+```
+
+```{r}
+# Función para extraer ubicación 
+extract_location_safe <- function(page) {
+  location <- NA
+  
+  tryCatch({
+    # Método 1: Buscar enlaces con ghost-stories-countries.php
+    country_links <- page %>%
+      html_nodes("a[href*='ghost-stories-countries.php']") %>%
+      html_attr("href")
+    
+    if (length(country_links) > 0) {
+      # Extraer el código de país del primer enlace
+      country_code <- str_extract(country_links[1], "country=([A-Z]{2})") %>%
+        str_replace("country=", "")
+      
+      if (!is.na(country_code)) {
+        # Diccionario simple de códigos principales
+        codes <- c(
+          "US" = "United States", "CA" = "Canada", "GB" = "United Kingdom", 
+          "AU" = "Australia", "IN" = "India", "PH" = "Philippines", 
+          "ZA" = "South Africa", "IE" = "Ireland", "NZ" = "New Zealand",
+          "DE" = "Germany", "FR" = "France", "IT" = "Italy", "ES" = "Spain",
+          "MX" = "Mexico", "BR" = "Brazil", "JP" = "Japan", "CN" = "China",
+          "RU" = "Russia", "PL" = "Poland", "NL" = "Netherlands"
+        )
+        
+        if (country_code %in% names(codes)) {
+          location <- codes[country_code]
+        } else {
+          location <- country_code
+        }
+      }
+    }
+    
+    # Método 2: Solo si el anterior falla, buscar texto "Country:"
+    if (is.na(location)) {
+      page_text <- page %>% html_text()
+      country_match <- str_extract(page_text, "Country:\\s*([A-Za-z\\s]{2,25})")
+      
+      if (!is.na(country_match)) {
+        location <- str_replace(country_match, "Country:\\s*", "") %>%
+          str_trim() %>%
+          str_to_title()
+      }
+    }
+    
+  }, error = function(e) {
+    # Si hay cualquier error, simplemente devolver NA
+    location <- NA
+  })
+  
+  return(location)
+}
+
+```
+
+```{r}
+parse_story <- function(url) {
+  if (is.na(url)) return(NULL)
+  cat("Analizando:", url, "\n")
+  
+
+  page <- try({
+    session <- html_session(url, user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"))
+    session
+  }, silent = TRUE)
+  
+  if (inherits(page, "try-error")) {
+    page <- try(read_html(url), silent = TRUE)
+    if (inherits(page, "try-error")) {
+      warning("Falló al leer: ", url)
+      return(NULL)
+    }
+  } else {
+    page <- try(read_html(page), silent = TRUE)
+    if (inherits(page, "try-error")) {
+      warning("Falló al leer: ", url)
+      return(NULL)
+    }
+  }
+  
+ 
+  title <- page %>% html_node("h1") %>% html_text(trim = TRUE)
+  
+  body <- page %>%
+    html_nodes("#story p") %>%
+    html_text(trim = TRUE) %>%
+    paste(collapse = "\n\n")
+  
+  category <- page %>%
+    html_nodes(xpath = "//a[contains(@href,'ghost-stories-categories.php')]") %>%
+    html_text(trim = TRUE) %>%
+    .[1]
+  
+
+  location <- extract_location_safe(page)
+  
+  if (is.na(title) | is.na(body)) return(NULL)
+  
+  data.frame(
+    title = title,
+    story = body,
+    category = ifelse(length(category) > 0, category, NA),
+    location = location,
+    stringsAsFactors = FALSE
+  )
+}
+
+
+start_id <- 1
+end_id <- 3000
+
+stories_list <- list()
+success_count <- 0
+error_count <- 0
+
+cat("=== INICIANDO SCRAPING ===\n")
+cat("Objetivo: extraer", end_id, "historias\n\n")
+
+for (i in start_id:end_id) {
+  url <- paste0("https://www.yourghoststories.com/real-ghost-story.php?story=", i)
+  story <- parse_story(url)
+  
+  if (!is.null(story)) {
+    stories_list[[length(stories_list) + 1]] <- story
+    success_count <- success_count + 1
+  } else {
+    error_count <- error_count + 1
+  }
+  
+  # Mostrar progreso cada 50 historias
+  if (i %% 50 == 0) {
+    cat("Progreso:", i, "/", end_id, "| Exitosas:", success_count, "| Errores:", error_count, "\n")
+  }
+  
+  gc()
+  
+  # Delay
+  if (i < 350) {
+    Sys.sleep(0.4)
+  } else {
+    Sys.sleep(0.7)
+  }
+}
+
+if (length(stories_list) > 0) {
+  stories_df <- do.call(rbind, stories_list)
+  rownames(stories_df) <- NULL
+  
+  cat("\n=== RESULTADOS FINALES ===\n")
+  cat("Total de historias guardadas:", nrow(stories_df), "\n")
+  cat("Historias exitosas:", success_count, "\n")
+  cat("Errores:", error_count, "\n")
+  
+  # Estadísticas de ubicación
+  locations_found <- sum(!is.na(stories_df$location))
+  cat("Historias con ubicación:", locations_found, "\n")
+  cat("Tasa de éxito:", round(success_count/(success_count+error_count)*100, 2), "%\n")
+  cat("Tasa de ubicación:", round(locations_found/nrow(stories_df)*100, 2), "%\n")
+  
+  # Mostrar ubicaciones encontradas si las hay
+  if (locations_found > 0) {
+    cat("\nUbicaciones encontradas:\n")
+    location_table <- table(stories_df$location[!is.na(stories_df$location)])
+    print(sort(location_table, decreasing = TRUE))
+  }
+  
+  # Guardar resultado
+  write.csv(stories_df, "ghost_stories_2000.csv", row.names = FALSE, fileEncoding = "UTF-8")
+  cat("Archivo guardado como: ghost_stories_3000.csv\n")
+  
+
+  head(stories_df)
+  
+} else {
+  cat("No se pudieron extraer historias\n")
+}
+
+#closeAllConnections()
+#gc()
+```

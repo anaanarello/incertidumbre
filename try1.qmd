@@ -1,0 +1,535 @@
+---
+title: "try1"
+format: html
+editor: visual
+---
+
+```{r}
+# ===============================================================================
+# ANÁLISIS PROFESIONAL DE TEXTO - HISTORIAS DE FANTASMAS
+# Clasificación de historias paranormales usando Naive Bayes (optimizado)
+# ===============================================================================
+
+# --- Librerías ---
+library(tidyverse)
+library(tidytext)
+library(Matrix)
+library(caret)
+library(naivebayes)
+library(e1071)    # solo para confusionMatrix si no está cargado por caret
+library(janitor)
+library(ggplot2)
+library(viridis)
+library(scales)
+```
+
+```{r}
+options(width = 110)
+
+cat("=== CARGANDO DATASET DE HISTORIAS DE FANTASMAS ===\n")
+
+# --- 1) Carga del dataset ---
+stories_df <- read.csv("ghost_stories_2000.csv",
+                       stringsAsFactors = FALSE,
+                       encoding = "UTF-8")
+```
+
+```{r}
+# --- 2) Exploración básica ---
+cat("Dimensiones del dataset:", nrow(stories_df), "filas,", ncol(stories_df), "columnas\n")
+cat("Columnas:", paste(names(stories_df), collapse = ", "), "\n\n")
+
+print("=== RESUMEN DEL DATASET ===")
+print(summary(stories_df))
+
+# Métricas de tamaño de texto
+stories_df <- stories_df %>%
+  mutate(
+    word_count     = str_count(story, "\\S+"),
+    char_count     = nchar(story),
+    sentence_count = str_count(story, "[.!?]+")
+  )
+
+print("=== ESTADÍSTICAS DE CONTENIDO ===")
+print(stories_df %>%
+        select(word_count, char_count, sentence_count) %>%
+        summary())
+```
+
+```{r}
+# --- 3) Distribuciones descriptivas ---
+cat("\n=== DISTRIBUCIÓN DE CATEGORÍAS ===\n")
+category_dist <- stories_df %>%
+  filter(!is.na(category) & category != "") %>%
+  count(category, sort = TRUE) %>%
+  mutate(percentage = round(n/sum(n)*100, 2))
+print(category_dist)
+
+p1 <- ggplot(category_dist,
+             aes(x = reorder(category, n), y = n, fill = category)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(aes(label = paste0(n, " (", percentage, "%)")), hjust = -0.1, size = 3) +
+  coord_flip() +
+  scale_fill_viridis_d() +
+  labs(title = "Distribución de Categorías de Historias",
+       subtitle = "Frecuencia y porcentaje por categoría",
+       x = "Categoría", y = "Número de historias") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+print(p1)
+
+if ("location" %in% names(stories_df)) {
+  cat("\n=== DISTRIBUCIÓN GEOGRÁFICA ===\n")
+  location_dist <- stories_df %>%
+    filter(!is.na(location) & location != "") %>%
+    count(location, sort = TRUE) %>%
+    slice_head(n = 10)
+  print(location_dist)
+
+  p2 <- ggplot(location_dist,
+               aes(x = reorder(location, n), y = n, fill = location)) +
+    geom_col(show.legend = FALSE) +
+    geom_text(aes(label = n), hjust = -0.15, size = 3) +
+    coord_flip() +
+    scale_fill_viridis_d() +
+    labs(title = "Top 10 Países con Más Historias",
+         x = "País", y = "Número de historias") +
+    theme_minimal(base_size = 12) +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+  print(p2)
+}
+
+```
+
+```{r}
+# ===============================================================================
+# 3. PROCESAMIENTO DE TEXTO
+# ===============================================================================
+
+cat("\n=== INICIANDO ANÁLISIS DE TEXTO ===\n")
+
+# Títulos únicos para servir como ID estable
+stories_df <- stories_df %>%
+  mutate(title = make.unique(title, sep = "_"))
+
+# Tokenización y limpieza
+stories_words <- stories_df %>%
+  mutate(doc_id = row_number(),
+         story_clean = str_to_lower(story) %>%
+                       str_remove_all("[^a-zA-Z\\s]") %>%
+                       str_squish()) %>%
+  unnest_tokens(word, story_clean) %>%
+  filter(nchar(word) > 2) %>%                 # descarta tokens muy cortos
+  anti_join(stop_words, by = "word")          # quita stopwords
+
+cat("Palabras únicas después de limpieza:",
+    length(unique(stories_words$word)), "\n")
+
+# Frecuencias globales
+word_freq <- stories_words %>%
+  count(word, sort = TRUE)
+
+print("=== TOP 20 PALABRAS MÁS FRECUENTES ===")
+print(head(word_freq, 20))
+
+p3 <- word_freq %>%
+  slice_head(n = 20) %>%
+  ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(aes(label = n), hjust = -0.1, size = 3) +
+  coord_flip() +
+  scale_fill_viridis_c() +
+  labs(title = "Top 20 Palabras Más Frecuentes",
+       subtitle = "Tras limpieza y sin stop words",
+       x = "Palabra", y = "Frecuencia") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+print(p3)
+
+# Palabras por categoría (si existe)
+if (sum(!is.na(stories_df$category)) > 0) {
+  words_by_category <- stories_words %>%
+    filter(!is.na(category)) %>%
+    count(category, word, sort = TRUE) %>%
+    group_by(category) %>%
+    slice_head(n = 10) %>%
+    ungroup()
+
+  top_categories <- category_dist$category[1:min(3, nrow(category_dist))]
+
+  p4 <- words_by_category %>%
+    filter(category %in% top_categories) %>%
+    mutate(word = reorder_within(word, n, category)) %>%
+    ggplot(aes(y = word, x = n, fill = category)) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~ category, scales = "free_y") +
+    scale_y_reordered() +
+    scale_fill_viridis_d() +
+    labs(title = "Top 10 palabras por categoría principal",
+         x = "Frecuencia", y = "Palabra") +
+    theme_minimal(base_size = 12) +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+  print(p4)
+}
+
+```
+
+```{r}
+# ===============================================================================
+# 4. CONSTRUCCIÓN DE MATRIZ SPARSE PROFESIONAL
+# ===============================================================================
+
+cat("\n=== CONSTRUYENDO MATRIZ DOCUMENT-TERM ===\n")
+
+# Conteo de palabras por documento
+word_counts <- stories_words %>%
+  count(title, word, sort = TRUE)
+
+cat("Dimensiones de word_counts:", nrow(word_counts), "filas\n")
+
+# Filtrar palabras muy raras (aparecen en menos de 3 documentos)
+word_doc_freq <- word_counts %>%
+  group_by(word) %>%
+  summarise(doc_freq = n(), .groups = "drop")
+
+common_words <- word_doc_freq %>%
+  filter(doc_freq >= 3) %>%
+  pull(word)
+
+cat("Palabras filtradas (≥3 documentos):", length(common_words), "\n")
+
+# Crear DTM con palabras filtradas
+library(janitor)
+dtm_wide <- word_counts %>%
+  filter(word %in% common_words) %>%
+  rename(doc_id = title) %>%                # <-- CAMBIO: evitar choque con columnas de palabras
+  pivot_wider(
+    names_from  = word,
+    values_from = n,
+    values_fill = 0,
+    names_repair = "unique",
+    names_prefix = "w_"                      # <-- CAMBIO: todas las features de palabras con prefijo
+  ) %>%
+  rename(title = doc_id) %>%                # volvemos a llamar 'title' a la llave del documento
+  clean_names()
+
+cat("Dimensiones de DTM:", nrow(dtm_wide), "filas,", ncol(dtm_wide)-1, "características\n")
+
+# Agregar información adicional
+enhanced_dtm <- dtm_wide %>%
+  left_join(stories_df %>% select(title, category, location), by = "title") %>%
+  # Agregar características geográficas si están disponibles
+  {
+    if("location" %in% names(.)) {
+      mutate(.,
+        has_location = ifelse(is.na(location), 0, 1),
+        is_us       = ifelse(location == "United States", 1, 0),
+        is_uk       = ifelse(location == "United Kingdom", 1, 0),
+        is_canada   = ifelse(location == "Canada", 1, 0)
+      ) %>%
+      replace_na(list(is_us = 0, is_uk = 0, is_canada = 0, has_location = 0))
+    } else {
+      .
+    }
+  }
+
+# Crear matriz sparse
+feature_columns <- setdiff(names(enhanced_dtm), c("title", "category", "location"))
+dtm_matrix <- enhanced_dtm[, feature_columns, drop = FALSE]
+
+# >>> Solo columnas numéricas a la matriz sparse (evita 'invalid data')
+numeric_cols <- vapply(dtm_matrix, is.numeric, logical(1))  # robusto y rápido
+dtm_matrix   <- as.matrix(dtm_matrix[, numeric_cols, drop = FALSE])
+
+dtm_sparse <- Matrix(dtm_matrix, sparse = TRUE)
+
+cat("Matriz sparse creada:", nrow(dtm_sparse), "x", ncol(dtm_sparse), "\n")
+cat("Sparsity:", round((1 - nnzero(dtm_sparse)/(nrow(dtm_sparse)*ncol(dtm_sparse)))*100, 2), "%\n")
+
+```
+
+```{r}
+# ======================================================================
+# 5. PREPARACIÓN PARA MODELADO (auto-contenido y robusto en Quarto)
+# ======================================================================
+
+# Comprobar que la DTM y el data frame base existen
+if (!exists("enhanced_dtm") || !exists("dtm_sparse")) {
+  stop("Faltan objetos previos: ejecuta los bloques donde se crean `enhanced_dtm` y `dtm_sparse`.")
+}
+
+# Si no existen `modeling_data` y `target_var`, crearlos aquí
+if (!exists("modeling_data") || !exists("target_var")) {
+  category_counts <- table(
+    enhanced_dtm$category[!is.na(enhanced_dtm$category) & enhanced_dtm$category != ""]
+  )
+  if (length(category_counts) < 2) {
+    stop("No hay suficientes categorías válidas para modelar.")
+  }
+  max_ratio <- max(category_counts) / min(category_counts)
+
+  if (max_ratio > 5 || min(category_counts) < 20) {
+    major_category <- names(which.max(category_counts))
+    modeling_data <- enhanced_dtm %>%
+      dplyr::filter(!is.na(category) & category != "") %>%
+      dplyr::mutate(category_binary = dplyr::if_else(category == major_category, major_category, "Other")) %>%
+      dplyr::mutate(category_binary = factor(category_binary))
+    target_var <- "category_binary"
+  } else {
+    modeling_data <- enhanced_dtm %>%
+      dplyr::filter(!is.na(category) & category != "") %>%
+      dplyr::mutate(category = factor(category))
+    target_var <- "category"
+  }
+}
+
+# Alinear filas de la DTM con los títulos de `modeling_data`
+row_idx  <- match(modeling_data$title, enhanced_dtm$title)
+present  <- !is.na(row_idx)
+if (!all(present)) {
+  message("Advertencia: se descartan ", sum(!present),
+          " documentos de modeling_data que no están en la DTM.")
+  modeling_data <- modeling_data[present, , drop = FALSE]
+  row_idx <- row_idx[present]
+}
+
+# Extraer X (matriz de características) y y (objetivo)
+X_all_sparse <- dtm_sparse[row_idx, , drop = FALSE]
+y_all        <- modeling_data[[target_var]]
+
+# Convertir a matriz base (evita errores de subíndices S4 en algunos métodos)
+X_all <- as.matrix(X_all_sparse)
+
+# Split estratificado 70/30
+set.seed(1234)
+train_idx <- caret::createDataPartition(y_all, p = 0.7, list = FALSE)
+
+X_train <- X_all[train_idx, , drop = FALSE]
+X_test  <- X_all[-train_idx, , drop = FALSE]
+y_train <- y_all[train_idx]
+y_test  <- y_all[-train_idx]
+
+# Resumen
+cat("Tamaño X_train:", nrow(X_train), "x", ncol(X_train), "\n")
+cat("Tamaño X_test :", nrow(X_test),  "x", ncol(X_test),  "\n")
+cat("Clases en train:\n"); print(table(y_train))
+cat("Clases en test:\n");  print(table(y_test))
+
+```
+
+```{r}
+# ===============================================================================
+# 6. MODELOS BASE RÁPIDOS (sparse)
+# ===============================================================================
+
+cat("\n=== ENTRENANDO MODELOS NAIVE BAYES (rápidos, matriz sparse) ===\n")
+
+# Modelo NB Gaussiano con Laplace=1 (base)
+nb_norm <- naive_bayes(x = X_train, y = y_train, laplace = 1)
+
+# Modelo NB Poisson con Laplace=1 (recomendado para conteos)
+nb_pois <- naive_bayes(x = X_train, y = y_train, laplace = 1, usepoisson = TRUE)
+
+# Predicciones y métricas
+pred_norm <- predict(nb_norm, X_test)
+pred_pois <- predict(nb_pois, X_test)
+
+extract_metrics <- function(pred, actual, name){
+  cm <- confusionMatrix(pred, actual)
+  if (length(levels(actual)) == 2) {
+    prec <- cm$byClass["Pos Pred Value"]; rec <- cm$byClass["Sensitivity"]; f1 <- cm$byClass["F1"]
+  } else {
+    prec <- mean(cm$byClass[,"Pos Pred Value"], na.rm = TRUE)
+    rec  <- mean(cm$byClass[,"Sensitivity"], na.rm = TRUE)
+    f1   <- mean(cm$byClass[,"F1"], na.rm = TRUE)
+  }
+  data.frame(Model = name,
+             Accuracy = round(cm$overall["Accuracy"], 4),
+             Precision = round(prec, 4),
+             Recall = round(rec, 4),
+             F1_Score = round(f1, 4))
+}
+
+metrics_norm <- extract_metrics(pred_norm, y_test, "NB (Gauss) + Laplace=1")
+metrics_pois <- extract_metrics(pred_pois, y_test, "NB (Poisson) + Laplace=1")
+initial_metrics <- bind_rows(metrics_norm, metrics_pois)
+
+print("=== MÉTRICAS INICIALES (modelos rápidos) ===")
+print(knitr::kable(initial_metrics, caption = "Comparación de modelos base"))
+
+```
+
+```{r}
+
+# ===============================================================================
+# 7. VALIDACIÓN CRUZADA LIGERA PARA NB-POISSON
+# ===============================================================================
+
+cat("\n=== OPTIMIZACIÓN LIGERA CON CROSS-VALIDATION (NB-Poisson) ===\n")
+
+laplace_grid <- c(1)   # grid reducido
+cv_folds     <- 3      # 3-fold CV para rapidez
+
+folds <- createFolds(y_train, k = cv_folds)
+
+perform_cv_sparse <- function(laplace_val){
+  acc <- numeric(cv_folds)
+  for (i in seq_along(folds)) {
+    tr <- setdiff(seq_len(nrow(X_train)), folds[[i]])
+    va <- folds[[i]]
+    mdl <- naive_bayes(x = X_train[tr, ], y = y_train[tr],
+                       laplace = laplace_val, usepoisson = TRUE)
+    prd <- predict(mdl, X_train[va, ])
+    acc[i] <- mean(prd == y_train[va])
+  }
+  data.frame(Laplace = laplace_val,
+             Mean_Accuracy = mean(acc),
+             SD_Accuracy   = sd(acc),
+             Poisson = TRUE)
+}
+
+cv_results <- purrr::map_df(laplace_grid, perform_cv_sparse) %>%
+  arrange(desc(Mean_Accuracy)) %>%
+  mutate(Rank = row_number())
+
+print("=== RESULTADOS DE CROSS-VALIDATION (NB-Poisson) ===")
+print(knitr::kable(cv_results, caption = "Resultados 3-fold CV (grid reducido)"))
+
+```
+
+```{r}
+# ===============================================================================
+# 8. MODELO FINAL
+# ===============================================================================
+
+cat("\n=== ENTRENANDO MODELO FINAL OPTIMIZADO ===\n")
+
+best_params <- cv_results[1, ]
+cat("Mejores parámetros:\n")
+cat("  Laplace:", best_params$Laplace, "\n")
+cat("  Usar Poisson: TRUE\n")
+cat("  CV Accuracy:", round(best_params$Mean_Accuracy, 4), "±",
+    round(best_params$SD_Accuracy, 4), "\n")
+
+nb_final <- naive_bayes(
+  x = X_train, y = y_train,
+  laplace = best_params$Laplace, usepoisson = TRUE
+)
+
+pred_final <- predict(nb_final, X_test)
+cm_final   <- confusionMatrix(pred_final, y_test)
+
+metrics_final <- extract_metrics(pred_final, y_test,
+                                paste0("NB-Poisson (Laplace=", best_params$Laplace, ")"))
+
+print("=== MODELO FINAL ===")
+print(knitr::kable(metrics_final, caption = "Métricas del modelo final"))
+
+
+```
+
+```{r}
+# ===============================================================================
+# 9. ANÁLISIS DE RESULTADOS
+# ===============================================================================
+
+cat("\n=== ANÁLISIS DETALLADO DE RESULTADOS ===\n")
+print("Matriz de Confusión del Modelo Final:")
+print(cm_final$table)
+
+if (length(levels(y_test)) > 2) {
+  class_metrics <- data.frame(
+    Class       = rownames(cm_final$byClass),
+    Sensitivity = round(cm_final$byClass[,"Sensitivity"], 4),
+    Specificity = round(cm_final$byClass[,"Specificity"], 4),
+    Precision   = round(cm_final$byClass[,"Pos Pred Value"], 4),
+    F1          = round(cm_final$byClass[,"F1"], 4)
+  )
+  print(knitr::kable(class_metrics, caption = "Métricas por clase"))
+} else {
+  print("Clasificación binaria: métricas globales mostradas arriba.")
+}
+
+# Comparación visual de métricas
+comparison_plot <- bind_rows(initial_metrics, metrics_final) %>%
+  select(Model, Accuracy, Precision, Recall, F1_Score) %>%
+  pivot_longer(cols = -Model, names_to = "Metric", values_to = "Value") %>%
+  ggplot(aes(x = Model, y = Value, fill = Metric)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = scales::percent(Value, accuracy = 0.1)),
+            position = position_dodge(width = 0.9), vjust = -0.2, size = 3) +
+  scale_fill_viridis_d() +
+  scale_y_continuous(labels = percent_format()) +
+  labs(title = "Comparación de métricas por modelo",
+       x = "Modelo", y = "Valor") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        axis.text.x  = element_text(angle = 20, hjust = 1))
+print(comparison_plot)
+
+# Matriz de confusión gráfica (si #clases es pequeño)
+if (length(levels(y_test)) <= 4) {
+  cm_plot_data <- as.data.frame(cm_final$table) %>%
+    rename(Actual = Reference, Predicted = Prediction)
+
+  cm_plot <- ggplot(cm_plot_data, aes(x = Predicted, y = Actual, fill = Freq)) +
+    geom_tile() +
+    geom_text(aes(label = Freq), color = "white", size = 5, fontface = "bold") +
+    scale_fill_viridis_c() +
+    labs(title = "Matriz de confusión - Modelo final",
+         x = "Predicción", y = "Real") +
+    theme_minimal(base_size = 12) +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+  print(cm_plot)
+}
+
+
+```
+
+```{r}
+# ===============================================================================
+# 10. REPORTE EJECUTIVO (consola)
+# ===============================================================================
+
+cat("\n", paste(rep("=", 80), collapse = ""), "\n")
+cat("REPORTE EJECUTIVO FINAL\n")
+cat(paste(rep("=", 80), collapse = ""), "\n")
+
+cat("\nRESUMEN DEL DATASET:\n")
+cat("  • Total de historias analizadas:", nrow(stories_df), "\n")
+cat("  • Historias con categoría válida:", nrow(modeling_data), "\n")
+if ("location" %in% names(stories_df)) {
+  cat("  • Historias con ubicación:", sum(!is.na(stories_df$location)), "\n")
+}
+cat("  • Características textuales (DTM):", ncol(dtm_sparse), "\n")
+cat("  • Tipo de clasificación:", ifelse(target_var == "category_binary", "Binaria", "Multiclase"), "\n")
+
+cat("\nPROCESAMIENTO DE TEXTO:\n")
+cat("  • Palabras únicas tras limpieza:", length(unique(stories_words$word)), "\n")
+cat("  • Palabras usadas (≥3 docs):", length(common_words), "\n")
+cat("  • Sparsity de la matriz:", round((1 - nnzero(dtm_sparse)/(nrow(dtm_sparse)*ncol(dtm_sparse)))*100, 2), "%\n")
+
+cat("\nMODELADO:\n")
+cat("  • Algoritmo: Naive Bayes (Poisson) con Laplace=", best_params$Laplace, "\n", sep = "")
+cat("  • Validación: 3-fold CV (grid reducido)\n")
+cat("  • División train/test: 70% / 30%\n")
+
+cat("\nRESULTADOS FINALES (test):\n")
+cat("  • Accuracy:", sprintf("%.2f%%", metrics_final$Accuracy * 100), "\n")
+cat("  • Precision:", sprintf("%.2f%%", metrics_final$Precision * 100), "\n")
+cat("  • Recall:", sprintf("%.2f%%", metrics_final$Recall * 100), "\n")
+cat("  • F1-Score:", sprintf("%.2f%%", metrics_final$F1_Score * 100), "\n")
+
+cat("\nCONCLUSIÓN:\n")
+if (metrics_final$Accuracy > 0.8) {
+  cat("  • Desempeño excelente para el objetivo planteado.\n")
+} else if (metrics_final$Accuracy > 0.7) {
+  cat("  • Buen desempeño, con margen de mejora mediante ajuste de features.\n")
+} else {
+  cat("  • Desempeño moderado; conviene refinar vocabulario y balance de clases.\n")
+}
+
+cat("\nInformación de la sesión:\n")
+print(sessionInfo())
+
+```
